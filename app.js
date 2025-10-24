@@ -1,0 +1,62 @@
+import express from "express"
+import dotenv from "dotenv"
+import cors from "cors"
+import swaggerUi from 'swagger-ui-express';
+import swaggerJsdoc from 'swagger-jsdoc';
+
+import connectToMongo from "./config/mongo.js"
+
+import giftsRoutes from "./routes/gifts.routes.js"
+import authRoutes from "./routes/auth.routes.js"
+import friendsRoutes from "./routes/friends.routes.js"
+import imagesRoutes from "./routes/images.routes.js"
+import usersRoutes from "./routes/users.routes.js"
+import tagsRoutes from "./routes/tags.routes.js"
+import eventsRoutes from "./routes/events.routes.js"
+import notificationsRoutes from "./routes/notifications.routes.js"
+import draftsRoutes from "./routes/drafts.routes.js"
+import parsesRoutes from "./routes/parses.routes.js"
+import thanksRoutes from "./routes/thanks.routes.js"
+
+import { initEventScheduler } from "./scheduler.js";
+
+dotenv.config()
+
+const app=express()
+
+app.use(express.json({ limit: '5mb' }));
+app.use(express.urlencoded({ limit: "5mb", extended: true }));
+app.use(cors())
+
+const swaggerOptions = {
+  swaggerDefinition: {
+    openapi: '3.0.0',
+    info: {
+      title: 'WhishList Backend API',
+      version: '0.0.2',
+      description: 'API for WhishList Telegram Mini App',
+    },
+  },
+  apis: ['./routes/*.js'],
+};
+const swaggerDocs = swaggerJsdoc(swaggerOptions);
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocs));
+
+app.use("/gifts",giftsRoutes)
+app.use("/auth",authRoutes)
+app.use("/friends",friendsRoutes)
+app.use("/images",imagesRoutes)
+app.use("/users",usersRoutes)
+app.use("/tags",tagsRoutes)
+app.use("/events",eventsRoutes)
+app.use("/notifications",notificationsRoutes)
+app.use("/drafts",draftsRoutes)
+app.use("/parses",parsesRoutes)
+app.use("/thanks",thanksRoutes)
+
+app.listen(5000,()=>{
+    connectToMongo()
+    console.log("Server is started at http://localhost:5000")
+
+    initEventScheduler();
+})
