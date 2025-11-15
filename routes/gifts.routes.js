@@ -905,26 +905,38 @@ router.get("/search/:telegramId", async (req, res) => {
     const { telegramId } = req.params;
     const { q, minPrice, maxPrice, tags, sortBy } = req.query;
 
-    // Получаем владельца
+    // --- Получаем владельца ---
     const ownerUser = await User.findOne({
       telegramId: parseInt(telegramId)
     }).select('telegramId username firstName lastName photo_url').lean();
 
-    // Сортировка
+    // --- Сортировка ---
     let sortOptions = {};
     switch (sortBy) {
-      case 'expensive': sortOptions = { price: -1 }; break;
-      case 'cheapest': sortOptions = { price: 1 }; break;
-      case 'name_asc': sortOptions = { name: 1 }; break;
-      case 'name_desc': sortOptions = { name: -1 }; break;
+      case 'expensive':
+        sortOptions = { price: -1 };
+        break;
+      case 'cheapest':
+        sortOptions = { price: 1 };
+        break;
+      case 'name_asc':
+        sortOptions = { name: 1 };
+        break;
+      case 'name_desc':
+        sortOptions = { name: -1 };
+        break;
       case 'newest':
-      default: sortOptions = { createdAt: -1 }; break;
+      default:
+        sortOptions = { createdAt: -1 };
+        break;
     }
 
-    // Агрегация
+    // --- Агрегация ---
     const gifts = await Gift.aggregate([
+      // 1. Только подарки владельца
       { $match: { owner: parseInt(telegramId) } },
 
+      // 2. Присоединяем теги
       {
         $lookup: {
           from: 'tags',
@@ -934,23 +946,17 @@ router.get("/search/:telegramId", async (req, res) => {
         }
       },
 
-      {
-        $addFields: {
-          tagNames: { $map: { input: '$tagDocs', as: 'tag', in: '$$tag.name' } }
-        }
-      },
-
-      // Поиск по q
+      // 3. Поиск по q: в name ИЛИ в имени любого тега
       ...(q ? [{
         $match: {
           $or: [
             { name: { $regex: q, $options: 'i' } },
-            { tagNames: { $regex: q, $options: 'i' } }
+            { 'tagDocs.name': { $regex: q, $options: 'i' } }
           ]
         }
       }] : []),
 
-      // Цена
+      // 4. Фильтр по цене
       ...(minPrice || maxPrice ? [{
         $match: {
           price: {
@@ -960,27 +966,44 @@ router.get("/search/:telegramId", async (req, res) => {
         }
       }] : []),
 
-      // Теги (если указаны)
+      // 5. Фильтр по тегам (по ID)
       ...(tags ? [{
         $match: {
-          tags: { $in: tags.split(',').map(id => new mongoose.Types.ObjectId(id.trim())) }
+          tags: {
+            $in: tags.split(',')
+              .map(id => id.trim())
+              .filter(id => mongoose.Types.ObjectId.isValid(id))
+              .map(id => new mongoose.Types.ObjectId(id))
+          }
         }
       }] : []),
 
+      // 6. Сортировка
       { $sort: sortOptions },
 
-      // Очищаем и форматируем теги
+      // 7. Формируем теги: только нужные поля
       {
-        $project: {
-          tagNames: 0,
-          tagDocs: { _id: 1, name: 1, color: 1, background: 1 }
+        $addFields: {
+          tags: {
+            $map: {
+              input: '$tagDocs',
+              as: 'tag',
+              in: {
+                _id: '$$tag._id',
+                name: '$$tag.name',
+                color: '$$tag.color',
+                background: '$$tag.background'
+              }
+            }
+          }
         }
       },
-      { $addFields: { tags: '$tagDocs' } },
+
+      // 8. Убираем временное поле
       { $unset: 'tagDocs' }
     ]);
 
-    // Добавляем ownerInfo
+    // --- Добавляем ownerInfo к каждому подарку ---
     const giftsWithOwnerInfo = gifts.map(gift => ({
       ...gift,
       ownerInfo: ownerUser ? {
@@ -992,12 +1015,14 @@ router.get("/search/:telegramId", async (req, res) => {
       } : null
     }));
 
+    // --- Ответ ---
     res.json({
       count: giftsWithOwnerInfo.length,
       gifts: giftsWithOwnerInfo
     });
+
   } catch (error) {
-    console.error(error);
+    console.error('Search error:', error);
     res.status(500).json({ message: error.message });
   }
 });
