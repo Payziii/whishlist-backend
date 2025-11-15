@@ -19,6 +19,7 @@ import parsesRoutes from "./routes/parses.routes.js"
 import thanksRoutes from "./routes/thanks.routes.js"
 
 import { initEventScheduler } from "./scheduler.js";
+import { runBot } from "./bot.js";
 
 dotenv.config()
 
@@ -59,4 +60,5 @@ app.listen(5000,()=>{
     console.log("Server is started at http://localhost:5000")
 
     initEventScheduler();
+    runBot();
 })

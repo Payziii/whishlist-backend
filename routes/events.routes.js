@@ -690,7 +690,7 @@ router.get("/list", authMiddleware, async (req, res) => {
       query.owner = { $in: friendIds };
     }
 
-    const events = await Event.find(query);
+    const events = await Event.find(query).populate('members', '_id username telegramId name photo_url firstName lastName');
     res.send(events);
   } catch (error) {
     console.error(error);
@@ -1018,6 +1018,107 @@ router.post("/:eventId/addGift/:giftId", authMiddleware, async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 });
+
+/**
+ * @swagger
+ * /events/{eventId}/addGifts:
+ *   post:
+ *     summary: Добавить один или несколько подарков в событие
+ *     tags: [Events]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: eventId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID события.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               giftIds:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 description: Массив ID подарков для добавления
+ *                 example: ["giftId1", "giftId2"]
+ *     responses:
+ *       200:
+ *         description: Подарки успешно добавлены в событие.
+ *       400:
+ *         description: Некорректные данные или некоторые подарки уже привязаны к событию.
+ *       401:
+ *         description: Требуется авторизация.
+ *       403:
+ *         description: Нет прав на добавление подарков в это событие.
+ *       404:
+ *         description: Событие или некоторые подарки не найдены.
+ *       500:
+ *         description: Внутренняя ошибка сервера.
+ */
+router.post("/:eventId/addGifts", authMiddleware, async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const { giftIds } = req.body; // массив ID подарков
+    const telegramId = req.user.telegramId;
+
+    if (!mongoose.Types.ObjectId.isValid(eventId)) {
+      return res.status(400).json({ message: "Invalid event ID." });
+    }
+
+    if (!Array.isArray(giftIds) || giftIds.some(id => !mongoose.Types.ObjectId.isValid(id))) {
+      return res.status(400).json({ message: "Invalid gift IDs." });
+    }
+
+    const event = await Event.findById(eventId);
+    if (!event) {
+      return res.status(404).json({ message: "Event not found." });
+    }
+
+    const gifts = await Gift.find({ _id: { $in: giftIds } });
+    if (gifts.length !== giftIds.length) {
+      return res.status(404).json({ message: "One or more gifts not found." });
+    }
+
+    const user = await User.findOne({ telegramId }).select("_id");
+    if (!user) {
+      return res.status(401).json({ message: "Unauthorized." });
+    }
+
+    const isOwner = event.owner === telegramId;
+    const isMember = event.members.some(memberId => memberId.equals(user._id));
+
+    // Проверяем, что текущий пользователь — владелец или участник события
+    if (!isOwner && !isMember) {
+      return res.status(403).json({ message: "You are not authorized to add gifts to this event." });
+    }
+
+    // Определяем подарки, уже добавленные в событие
+    const alreadyAddedIds = event.gifts.map(id => id.toString());
+
+    // Находим подарки, которые ещё не добавлены
+    const newGiftIds = giftIds.filter(id => !alreadyAddedIds.includes(id));
+
+    // Можно вернуть сообщение, если все подарки уже были добавлены
+    if (newGiftIds.length === 0) {
+      return res.status(400).json({ message: "All specified gifts are already added to the event." });
+    }
+
+    // Добавляем новые подарки
+    event.gifts.push(...newGiftIds);
+    await event.save();
+
+    res.status(200).json({ message: "Gifts successfully added to the event.", addedGiftIds: newGiftIds });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
 
 /**
  * @swagger

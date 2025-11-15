@@ -1,4 +1,5 @@
 import express from "express";
+import mongoose from "mongoose";
 import Gift from "../models/gift.model.js";
 import User from "../models/user.model.js";
 import Event from "../models/event.model.js";
@@ -266,7 +267,7 @@ router.post("/events/:eventId", authMiddleware, async (req, res) => {
             await createNotification({
                 recipientId: member._id,
                 senderId: sender._id,
-                notificationType: "EVENT_THANK_YOU_NOTE",
+                notificationType: "EVENT_THANK_YOU",
                 message: `${sender.firstName || sender.username} поблагодарил вас за  ${event.name}`,
                 description: req.body.message || "",
                 entityId: event._id,

@@ -1,9 +1,178 @@
 import express from "express";
 import Notification from "../models/notification.model.js";
 import User from "../models/user.model.js";
+import Event from "../models/event.model.js";
 import { authMiddleware } from '../middleware/auth.middleware.js';
 
 const router = express.Router();
+
+const MEMBER_SELECTION = '_id username telegramId name photo_url firstName lastName';
+
+const buildEventResponse = async (eventDoc) => {
+    const eventObject = eventDoc.toObject ? eventDoc.toObject() : { ...eventDoc };
+
+    const ownerInfo = await User.findOne({
+        telegramId: eventObject.owner
+    }).select('telegramId username firstName lastName photo_url').lean();
+
+    const reservedBySet = new Set();
+    const giftOwnersSet = new Set();
+
+    if (Array.isArray(eventObject.gifts)) {
+        eventObject.gifts.forEach((gift) => {
+            if (gift?.isReserved && gift?.reservedBy) {
+                reservedBySet.add(gift.reservedBy);
+            }
+            if (gift?.owner) {
+                giftOwnersSet.add(gift.owner);
+            }
+        });
+    }
+
+    const reservedUsersPromise = reservedBySet.size
+        ? User.find({ telegramId: { $in: Array.from(reservedBySet) } })
+            .select('telegramId username firstName lastName photo_url')
+            .lean()
+        : Promise.resolve([]);
+
+    const giftOwnersPromise = giftOwnersSet.size
+        ? User.find({ telegramId: { $in: Array.from(giftOwnersSet) } })
+            .select('telegramId username firstName lastName photo_url')
+            .lean()
+        : Promise.resolve([]);
+
+    const [reservedUsers, giftOwners] = await Promise.all([reservedUsersPromise, giftOwnersPromise]);
+
+    const reservedUsersMap = reservedUsers.reduce((map, user) => {
+        map[user.telegramId] = user;
+        return map;
+    }, {});
+
+    const giftOwnersMap = giftOwners.reduce((map, user) => {
+        map[user.telegramId] = user;
+        return map;
+    }, {});
+
+    eventObject.ownerInfo = ownerInfo || null;
+
+    eventObject.gifts = (eventObject.gifts || []).map((gift) => {
+        const currentGift = gift.toObject ? gift.toObject() : { ...gift };
+        return {
+            ...currentGift,
+            ownerInfo: currentGift.owner
+                ? giftOwnersMap[currentGift.owner] || {
+                    telegramId: currentGift.owner,
+                    username: "",
+                    firstName: "",
+                    lastName: "",
+                    photo_url: ""
+                }
+                : null,
+            reservedUserInfo: currentGift.isReserved && currentGift.reservedBy
+                ? reservedUsersMap[currentGift.reservedBy] || {}
+                : {}
+        };
+    });
+
+    return eventObject;
+};
+
+const enrichNotificationsWithLastEvent = async (notifications) => {
+    const relevantNotifications = notifications.filter((notification) =>
+        notification &&
+        notification.type === 'GIFT_THANK_YOU_NOTE' &&
+        notification.entityModel === 'Gift' &&
+        notification.entityId
+    );
+
+    if (!relevantNotifications.length) {
+        return notifications;
+    }
+
+    const giftIds = Array.from(new Set(relevantNotifications.map((notification) => {
+        const entityId = notification.entityId;
+        if (!entityId) {
+            return null;
+        }
+        return typeof entityId === 'string' ? entityId : entityId.toString();
+    }).filter(Boolean)));
+
+    if (!giftIds.length) {
+        return notifications;
+    }
+
+    const now = new Date();
+
+    const events = await Event.find({
+        gifts: { $in: giftIds },
+        endDate: { $ne: null, $lte: now }
+    })
+        .populate({
+            path: 'gifts',
+            populate: { path: 'tags' }
+        })
+        .populate('members', MEMBER_SELECTION)
+        .sort({ endDate: -1 });
+
+    if (!events.length) {
+        return notifications;
+    }
+
+    const giftIdsSet = new Set(giftIds);
+    const lastEventByGift = new Map();
+
+    for (const event of events) {
+        const giftsInEvent = (event.gifts || []).map((gift) => {
+            if (!gift) {
+                return null;
+            }
+            if (gift._id) {
+                return gift._id.toString();
+            }
+            return gift.toString ? gift.toString() : null;
+        }).filter(Boolean);
+
+        for (const giftId of giftsInEvent) {
+            if (!giftIdsSet.has(giftId) || lastEventByGift.has(giftId)) {
+                continue;
+            }
+            lastEventByGift.set(giftId, event);
+        }
+
+        if (lastEventByGift.size === giftIdsSet.size) {
+            break;
+        }
+    }
+
+    if (!lastEventByGift.size) {
+        return notifications;
+    }
+
+    const eventCache = new Map();
+
+    for (const notification of notifications) {
+        if (notification.type !== 'GIFT_THANK_YOU_NOTE' || notification.entityModel !== 'Gift' || !notification.entityId) {
+            continue;
+        }
+
+        const rawEntityId = notification.entityId;
+        const giftId = typeof rawEntityId === 'string' ? rawEntityId : rawEntityId.toString();
+        const matchedEvent = lastEventByGift.get(giftId);
+
+        if (!matchedEvent) {
+            continue;
+        }
+
+        const eventId = matchedEvent._id.toString();
+        if (!eventCache.has(eventId)) {
+            eventCache.set(eventId, await buildEventResponse(matchedEvent));
+        }
+
+        notification.lastCompletedEvent = eventCache.get(eventId);
+    }
+
+    return notifications;
+};
 
 /**
  * @swagger
@@ -102,9 +271,12 @@ router.get("/", authMiddleware, async (req, res) => {
 
         const notifications = await Notification.find({ recipient: currentUser._id })
             .populate('sender', 'telegramId firstName lastName username photo_url') 
-            .sort({ createdAt: -1 });
+            .sort({ createdAt: -1 })
+            .lean();
 
-        res.status(200).json(notifications);
+        const enrichedNotifications = await enrichNotificationsWithLastEvent(notifications);
+
+        res.status(200).json(enrichedNotifications);
 
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -143,9 +315,12 @@ router.get("/unread", authMiddleware, async (req, res) => {
             isRead: false
         })
         .populate('sender', 'telegramId firstName lastName username photo_url') 
-        .sort({ createdAt: -1 });
+        .sort({ createdAt: -1 })
+        .lean();
 
-        res.status(200).json(unreadNotifications);
+        const enrichedNotifications = await enrichNotificationsWithLastEvent(unreadNotifications);
+
+        res.status(200).json(enrichedNotifications);
 
     } catch (error)
         {
