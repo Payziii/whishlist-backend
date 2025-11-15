@@ -901,80 +901,105 @@ router.delete("/:giftId", authMiddleware, async (req, res) => {
  *         description: Внутренняя ошибка сервера
  */
 router.get("/search/:telegramId", async (req, res) => {
-    try {
-        const { telegramId } = req.params;
-        const { q, minPrice, maxPrice, tags, sortBy } = req.query;
+  try {
+    const { telegramId } = req.params;
+    const { q, minPrice, maxPrice, tags, sortBy } = req.query;
 
-        // Получаем информацию о владельце подарков
-        const ownerUser = await User.findOne({
-            telegramId: parseInt(telegramId)
-        }).select('telegramId username firstName lastName photo_url').lean();
+    // Получаем владельца
+    const ownerUser = await User.findOne({
+      telegramId: parseInt(telegramId)
+    }).select('telegramId username firstName lastName photo_url').lean();
 
-        // --- Формирование объекта для поиска ---
-        const queryOptions = { owner: parseInt(telegramId) };
-
-        if (q) {
-            queryOptions.name = { $regex: q, $options: 'i' };
-        }
-
-        if (minPrice || maxPrice) {
-            queryOptions.price = {};
-            if (minPrice) {
-                queryOptions.price.$gte = Number(minPrice);
-            }
-            if (maxPrice) {
-                queryOptions.price.$lte = Number(maxPrice);
-            }
-        }
-
-        if (tags) {
-            const tagsArray = tags.split(',');
-            queryOptions.tags = { $in: tagsArray };
-        }
-
-        // --- Формирование объекта для сортировки ---
-        let sortOptions = {};
-        switch (sortBy) {
-            case 'expensive':
-                sortOptions = { price: -1 };
-                break;
-            case 'cheapest':
-                sortOptions = { price: 1 };
-                break;
-            case 'name_asc':
-                sortOptions = { name: 1 };
-                break;
-            case 'name_desc':
-                sortOptions = { name: -1 };
-                break;
-            case 'newest':
-            default:
-                sortOptions = { createdAt: -1 };
-                break;
-        }
-
-        const gifts = await Gift.find(queryOptions).populate('tags').sort(sortOptions).lean();
-
-        // Добавляем информацию о владельце в каждый подарок
-        const giftsWithOwnerInfo = gifts.map(gift => ({
-            ...gift,
-            ownerInfo: ownerUser ? {
-                telegramId: ownerUser.telegramId,
-                username: ownerUser.username,
-                firstName: ownerUser.firstName,
-                lastName: ownerUser.lastName,
-                photo_url: ownerUser.photo_url
-            } : null
-        }));
-
-        res.json({
-            count: giftsWithOwnerInfo.length,
-            gifts: giftsWithOwnerInfo
-        });
-
-    } catch (error) {
-        res.status(500).json({ message: error.message });
+    // Сортировка
+    let sortOptions = {};
+    switch (sortBy) {
+      case 'expensive': sortOptions = { price: -1 }; break;
+      case 'cheapest': sortOptions = { price: 1 }; break;
+      case 'name_asc': sortOptions = { name: 1 }; break;
+      case 'name_desc': sortOptions = { name: -1 }; break;
+      case 'newest':
+      default: sortOptions = { createdAt: -1 }; break;
     }
+
+    // Агрегация
+    const gifts = await Gift.aggregate([
+      { $match: { owner: parseInt(telegramId) } },
+
+      {
+        $lookup: {
+          from: 'tags',
+          localField: 'tags',
+          foreignField: '_id',
+          as: 'tagDocs'
+        }
+      },
+
+      {
+        $addFields: {
+          tagNames: { $map: { input: '$tagDocs', as: 'tag', in: '$$tag.name' } }
+        }
+      },
+
+      // Поиск по q
+      ...(q ? [{
+        $match: {
+          $or: [
+            { name: { $regex: q, $options: 'i' } },
+            { tagNames: { $regex: q, $options: 'i' } }
+          ]
+        }
+      }] : []),
+
+      // Цена
+      ...(minPrice || maxPrice ? [{
+        $match: {
+          price: {
+            ...(minPrice ? { $gte: Number(minPrice) } : {}),
+            ...(maxPrice ? { $lte: Number(maxPrice) } : {})
+          }
+        }
+      }] : []),
+
+      // Теги (если указаны)
+      ...(tags ? [{
+        $match: {
+          tags: { $in: tags.split(',').map(id => new mongoose.Types.ObjectId(id.trim())) }
+        }
+      }] : []),
+
+      { $sort: sortOptions },
+
+      // Очищаем и форматируем теги
+      {
+        $project: {
+          tagNames: 0,
+          tagDocs: { _id: 1, name: 1, color: 1, background: 1 }
+        }
+      },
+      { $addFields: { tags: '$tagDocs' } },
+      { $unset: 'tagDocs' }
+    ]);
+
+    // Добавляем ownerInfo
+    const giftsWithOwnerInfo = gifts.map(gift => ({
+      ...gift,
+      ownerInfo: ownerUser ? {
+        telegramId: ownerUser.telegramId,
+        username: ownerUser.username,
+        firstName: ownerUser.firstName,
+        lastName: ownerUser.lastName,
+        photo_url: ownerUser.photo_url
+      } : null
+    }));
+
+    res.json({
+      count: giftsWithOwnerInfo.length,
+      gifts: giftsWithOwnerInfo
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: error.message });
+  }
 });
 
 /**

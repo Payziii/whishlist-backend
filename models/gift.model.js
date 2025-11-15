@@ -50,6 +50,8 @@ const giftSchema = new mongoose.Schema({
     }
 }, { timestamps: true })
 
+giftSchema.index({ owner: 1, name: "text" });
+
 const Gift = mongoose.model("Gift", giftSchema)
 
 export default Gift
