@@ -18,6 +18,10 @@ const giftSchema = new mongoose.Schema({
     price: {
         type: Number
     },
+    currency: {
+        type: String,
+        default: 'RUB'
+    },
     isReserved: {
         type: Boolean,
         default: false

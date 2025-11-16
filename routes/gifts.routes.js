@@ -250,7 +250,11 @@ const router = express.Router()
  *               price:
  *                 type: number
  *                 description: Примерная цена подарка.
- *                 example: 35000
+ *                 example: 35
+ *               currency:
+ *                 type: string
+ *                 description: Валюта подарка
+ *                 example: "EUR"
  *               linkToImage:
  *                 type: string
  *                 description: Изображение в формате Base64.
@@ -313,6 +317,9 @@ const router = express.Router()
  *               price:
  *                 type: number
  *                 description: Новая цена подарка.
+ *               currency:
+ *                 type: string
+ *                 description: Новая валюта подарка
  *               linkToImage:
  *                 type: string
  *                 description: Новое изображение в формате Base64.
@@ -599,6 +606,7 @@ router.post("/", authMiddleware, async (req, res) => {
             description: req.body.description,
             linkToGift: req.body.linkToGift,
             price: req.body.price,
+            currency: req.body.currency || 'RUB',
             linkToImage: `https://whishlist.hubforad.com/images/${imageId}`,
             tags: validatedTagIds,
             viewers: viewerObjectIds
@@ -625,6 +633,7 @@ router.put("/", authMiddleware, async (req, res) => {
     gift.description = req.body.description || gift.description
     gift.linkToGift = req.body.linkToGift || gift.linkToGift
     gift.price = req.body.price || gift.price
+    gift.currency = req.body.currency || gift.currency
 
     if (req.body.tags !== undefined) {
         const { tags } = req.body;
@@ -1258,6 +1267,9 @@ router.delete("/donation/:giftId", authMiddleware, async (req, res) => {
  *                 totalAmount:
  *                   type: number
  *                   description: Общая сумма всех донатов
+ *                 currency:
+ *                   type: string
+ *                   description: Валюта подарка
  *                 author:
  *                  type: object
  */
@@ -1334,7 +1346,8 @@ router.get("/:giftId/donors", authMiddleware, async (req, res) => {
             donationId: donation._id,
             author: donation.author,
             donors: donorsDetailed,
-            totalAmount: totalAmount
+            totalAmount: totalAmount,
+            currency: gift.currency
         });
     } catch (err) {
         res.status(500).json({ message: err.message });

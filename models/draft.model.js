@@ -17,6 +17,10 @@ const draftSchema=new mongoose.Schema({
     price:{
         type:Number
     },
+    currency: {
+        type: String,
+        default: 'RUB'
+    },
     linkToImage:{
         type:String
     },

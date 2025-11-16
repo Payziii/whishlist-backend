@@ -264,6 +264,7 @@ router.post("/", authMiddleware, async (req, res) => {
             description: req.body.description,
             linkToGift: req.body.linkToGift,
             price: req.body.price,
+            currency: req.body.currency || 'RUB',
             linkToImage: imageId,
             tags: validatedTagIds
         })
@@ -288,6 +289,7 @@ router.put("/", authMiddleware, async (req, res) => {
     gift.description = req.body.description || gift.description
     gift.linkToGift = req.body.linkToGift || gift.linkToGift
     gift.price = req.body.price || gift.price
+    gift.currency = req.body.currency || gift.currency
 
     if (req.body.tags !== undefined) {
             const { tags } = req.body;
