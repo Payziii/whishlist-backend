@@ -3,7 +3,7 @@ import mongoose from "mongoose"
 const defaultImageSchema = new mongoose.Schema({
     base64: {
         type: String,
-        required: true
+        required: false
     },
     original: {
         type: String,
