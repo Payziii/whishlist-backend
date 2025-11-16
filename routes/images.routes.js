@@ -1,52 +1,95 @@
 import express from "express"
 import Image from "../models/image.model.js"
 import DefaultImage from "../models/defaultImage.model.js"
+import sharp from 'sharp';
 import { Types } from "mongoose"
 import { authMiddleware } from '../middleware/auth.middleware.js'
 
 const router=express.Router()
 
-router.post("/default",async(req,res)=>{
+async function compressToWebVersion(base64Data, originalMime = 'image/png') {
+    const buffer = Buffer.from(base64Data, 'base64');
+    let image = sharp(buffer);
+
+    // Ресайз: максимум 1280px по ширине
+    image = image.resize({
+        width: 1280,
+        withoutEnlargement: true
+    });
+
+    let webBuffer, webMime;
+
+    if (originalMime.includes('png')) {
+        // PNG → сжатый PNG (lossless)
+        webBuffer = await image.png({ 
+            compressionLevel: 9,   // максимальное сжатие
+            adaptiveFiltering: true
+        }).toBuffer();
+        webMime = 'image/png';
+    } else {
+        // JPEG или другой → JPEG 80%
+        webBuffer = await image.jpeg({ 
+            quality: 80, 
+            mozjpeg: true 
+        }).toBuffer();
+        webMime = 'image/jpeg';
+    }
+
+    return {
+        webBase64: webBuffer.toString('base64'),
+        webMime
+    };
+}
+
+router.post("/default", async (req, res) => {
     try {
         const { base64 } = req.body;
-
         if (!base64) {
             return res.status(400).json({ error: 'Base64 data is required' });
         }
 
-        const base64Data = base64.replace(/^data:image\/\w+;base64,/, "");
+        // Убираем префикс
+        const match = base64.match(/^data:(image\/\w+);base64,(.*)$/);
+        if (!match) {
+            return res.status(400).json({ error: 'Invalid base64 format' });
+        }
+
+        const mimeType = match[1]; // image/png, image/jpeg и т.д.
+        const base64Data = match[2];
+
+        // Сжимаем до веб-версии
+        const { webBase64, webMime } = await compressToWebVersion(base64Data, mimeType);
 
         const newImage = new DefaultImage({
-            base64: base64Data
+            original: base64Data,
+            web: webBase64,
+            mimeType: webMime
         });
 
         const savedImage = await newImage.save();
         res.status(201).json({ message: 'Image uploaded successfully', id: savedImage._id });
     } catch (error) {
-        console.log('Ошибка:', error)
+        console.log('Ошибка:', error);
         res.status(500).json({ error: 'Failed to upload image' });
     }
-})
+});
 
 router.get("/default", async (req, res) => {
     try {
         const images = await DefaultImage.find({});
         const protocol = req.protocol;
         const host = req.get('host');
-
         const result = images.map(image => ({
             _id: image._id,
             url: `${protocol}://${host}/images/default/${image._id}`,
-            base64: image.base64
+            base64: image.web,
+            mimeType: image.mimeType
         }));
-
         res.status(200).json(result);
     } catch (error) {
-        console.log(error);
         res.status(500).json({ error: 'Failed to retrieve images' });
     }
 });
-
 
 router.get("/default/:id",async(req,res)=>{
     try {
@@ -55,52 +98,77 @@ router.get("/default/:id",async(req,res)=>{
             return res.status(404).json({ error: 'Image not found' });
         }
 
-        const base64Data = image.base64;
-        const buffer = Buffer.from(base64Data, 'base64');
-        res.contentType('image/png');
+        // Отдаём веб-версию
+        const buffer = Buffer.from(image.web, 'base64');
+        res.contentType(image.mimeType);
         res.send(buffer);
     } catch (error) {
         res.status(500).json({ error: 'Failed to retrieve image' });
     }
 })
 
-router.post("/",async(req,res)=>{
+router.post("/", async (req, res) => {
     try {
         const { base64 } = req.body;
-
         if (!base64) {
             return res.status(400).json({ error: 'Base64 data is required' });
         }
 
-        const base64Data = base64.replace(/^data:image\/\w+;base64,/, "");
+        // Убираем префикс
+        const match = base64.match(/^data:(image\/\w+);base64,(.*)$/);
+        if (!match) {
+            return res.status(400).json({ error: 'Invalid base64 format' });
+        }
+
+        const mimeType = match[1]; // image/png, image/jpeg и т.д.
+        const base64Data = match[2];
+
+        // Сжимаем до веб-версии
+        const { webBase64, webMime } = await compressToWebVersion(base64Data, mimeType);
 
         const newImage = new Image({
-            base64: base64Data
+            original: base64Data,
+            web: webBase64,
+            mimeType: webMime
         });
 
         const savedImage = await newImage.save();
         res.status(201).json({ message: 'Image uploaded successfully', id: savedImage._id });
     } catch (error) {
-        console.log(error)
+        console.log('Ошибка:', error);
         res.status(500).json({ error: 'Failed to upload image' });
     }
-})
+});
 
-router.get("/:id",async(req,res)=>{
+router.get("/:id", async (req, res) => {
     try {
         const image = await Image.findById(req.params.id);
         if (!image) {
             return res.status(404).json({ error: 'Image not found' });
         }
 
-        const base64Data = image.base64;
-        const buffer = Buffer.from(base64Data, 'base64');
-        res.contentType('image/png');
+        // Отдаём веб-версию
+        const buffer = Buffer.from(image.web, 'base64');
+        res.contentType(image.mimeType);
         res.send(buffer);
     } catch (error) {
         res.status(500).json({ error: 'Failed to retrieve image' });
     }
-})
+});
+
+router.get("/original/:id", async (req, res) => {
+    try {
+        const image = await Image.findById(req.params.id);
+        if (!image) return res.status(404).json({ error: 'Image not found' });
+
+        const originalBuffer = Buffer.from(image.original, 'base64');
+        const originalMime = req.query.mime || 'image/png'; // можно хранить отдельно
+        res.contentType(originalMime);
+        res.send(originalBuffer);
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to retrieve original image' });
+    }
+});
 
 router.get("/raw/:id",async(req,res)=>{
     try {
