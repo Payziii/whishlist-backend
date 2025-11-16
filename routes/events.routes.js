@@ -688,6 +688,18 @@ router.get("/list", authMiddleware, async (req, res) => {
     } else if (author === 'friends') {
       const friendIds = user.friends.map(friend => friend.telegramId);
       query.owner = { $in: friendIds };
+    } else {
+      const friendIds = user.friends.map(friend => friend.telegramId);
+
+      const currentUserObjectId = user._id;
+
+      query = {
+        $or: [
+          { owner: userId },                                      // мои подарки (я владелец)
+          { owner: { $in: friendIds } },                          // подарки друзей
+          { members: currentUserObjectId }                        // события, где я участник
+        ]
+      };
     }
 
     const events = await Event.find(query).populate('members', '_id username telegramId name photo_url firstName lastName');
