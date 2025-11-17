@@ -542,8 +542,7 @@ router.get("/reserved-by/:telegramId", async (req, res) => {
 
 //Create gift
 router.post("/", authMiddleware, async (req, res) => {
-
-    const { tags, viewers } = req.body;
+    const { tags, viewers, linkToImage } = req.body;
     const ownerId = req.user.telegramId;
     let validatedTagIds = [];
 
@@ -559,7 +558,7 @@ router.post("/", authMiddleware, async (req, res) => {
         validatedTagIds = userTags.map(tag => tag._id);
     }
 
-    // +++ НАЧАЛО: ДОБАВЬТЕ ЛОГИКУ ВАЛИДАЦИИ ДЛЯ VIEWERS
+    // +++ НАЧАЛО: ВАЛИДАЦИЯ VIEWERS (как у тебя было)
     let viewerObjectIds = [];
     if (viewers && Array.isArray(viewers) && viewers.length > 0) {
         const potentialObjectIds = [];
@@ -585,41 +584,54 @@ router.post("/", authMiddleware, async (req, res) => {
         }
         viewerObjectIds = foundUsers.map(user => user._id);
     }
-    // +++ КОНЕЦ: ЛОГИКА ВАЛИДАЦИИ
+    // +++ КОНЕЦ: ВАЛИДАЦИЯ VIEWERS
 
-    const response = await fetch("https://whishlist.hubforad.com/images", {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json"
-        },
-        body: JSON.stringify({ base64: req.body.linkToImage })
-    });
+    let finalLinkToImage;
 
-    const responseData = await response.json();
+    if (linkToImage) {
+        // Если это уже ссылка – просто сохраняем её
+        if (/^https?:\/\//i.test(linkToImage)) {
+            finalLinkToImage = linkToImage;
+        } else {
+            // Иначе считаем, что это base64 и заливаем на сервер
+            const response = await fetch("https://whishlist.hubforad.com/images", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({ base64: linkToImage })
+            });
 
-    if (response.ok) {
-        const imageId = responseData.id;
+            const responseData = await response.json();
 
-        const gift = new Gift({
-            owner: req.user.telegramId,
-            name: req.body.name,
-            description: req.body.description,
-            linkToGift: req.body.linkToGift,
-            price: req.body.price,
-            currency: req.body.currency || 'RUB',
-            linkToImage: `https://whishlist.hubforad.com/images/${imageId}`,
-            tags: validatedTagIds,
-            viewers: viewerObjectIds
-        })
-        try {
-            const newGift = await gift.save()
-            res.json(newGift)
-        } catch (error) {
-            res.json({ message: error.message })
+            if (!response.ok) {
+                return res.status(500).json({ message: "Failed to upload image" });
+            }
+
+            const imageId = responseData.id;
+            finalLinkToImage = `https://whishlist.hubforad.com/images/${imageId}`;
         }
     }
 
-})
+    const gift = new Gift({
+        owner: req.user.telegramId,
+        name: req.body.name,
+        description: req.body.description,
+        linkToGift: req.body.linkToGift,
+        price: req.body.price,
+        currency: req.body.currency || 'RUB',
+        linkToImage: finalLinkToImage, // <-- тут сохраняем либо URL, либо загруженную картинку
+        tags: validatedTagIds,
+        viewers: viewerObjectIds
+    });
+
+    try {
+        const newGift = await gift.save();
+        res.json(newGift);
+    } catch (error) {
+        res.json({ message: error.message });
+    }
+});
 
 router.put("/", authMiddleware, async (req, res) => {
     const gift = await Gift.findById(req.body.giftId)
@@ -663,26 +675,36 @@ router.put("/", authMiddleware, async (req, res) => {
         gift.viewers = req.body.viewers;
     }
 
-    if (req.body.linkToImage) {
-        const response = await fetch("https://whishlist.hubforad.com/images", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({ base64: req.body.linkToImage })
-        });
+    if (req.body.linkToImage !== undefined) {
+        const linkToImage = req.body.linkToImage;
 
-        const responseData = await response.json();
+        if (!linkToImage) {
+            // Если явно передали пустое значение – можем очистить картинку (если нужно)
+            gift.linkToImage = undefined;
+        } else if (/^https?:\/\//i.test(linkToImage)) {
+            // Если это уже ссылка – просто сохраняем её
+            gift.linkToImage = linkToImage;
+        } else {
+            // Иначе считаем, что это base64 и заливаем на сервер
+            const response = await fetch("https://whishlist.hubforad.com/images", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({ base64: linkToImage })
+            });
 
-        if (response.ok) {
+            const responseData = await response.json();
+
+            if (!response.ok) {
+                return res.status(500).json({ message: "Failed to upload image" });
+            }
+
             const imageId = responseData.id;
             gift.linkToImage = `https://whishlist.hubforad.com/images/${imageId}`;
-        } else {
-            return res.status(500).json({ message: "Failed to upload image" });
         }
-    } else {
-        gift.linkToImage = gift.linkToImage
     }
+
     try {
         const updatedGift = await gift.save()
         res.json(updatedGift)
@@ -690,6 +712,7 @@ router.put("/", authMiddleware, async (req, res) => {
         res.json({ message: error.message })
     }
 })
+
 
 //Get gift by ID
 router.get("/:giftId", authMiddleware, async (req, res) => {

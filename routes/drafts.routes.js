@@ -226,7 +226,6 @@ const router = express.Router()
 
 //Create gift
 router.post("/", authMiddleware, async (req, res) => {
-
     const { tags } = req.body;
     const ownerId = req.user.telegramId;
     let validatedTagIds = [];
@@ -242,110 +241,137 @@ router.post("/", authMiddleware, async (req, res) => {
 
         validatedTagIds = userTags.map(tag => tag._id);
     }
-    let imageId;
-    if(req.body.linkToImage && req.body.linkToImage.length > 0) {
-        const response = await fetch("https://whishlist.hubforad.com/images", {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json"
-        },
-        body: JSON.stringify({ base64: req.body.linkToImage })
-    });
 
-    const responseData = await response.json();
+    let finalLinkToImage;
+    if (req.body.linkToImage !== undefined && req.body.linkToImage !== null && req.body.linkToImage !== "") {
+        const linkToImage = req.body.linkToImage;
 
-    if (response.ok) {
-        imageId = `https://whishlist.hubforad.com/images/${responseData.id}`;
-    }
-}
-        const gift = new Draft({
-            owner: req.user.telegramId,
-            name: req.body.name,
-            description: req.body.description,
-            linkToGift: req.body.linkToGift,
-            price: req.body.price,
-            currency: req.body.currency || 'RUB',
-            linkToImage: imageId,
-            tags: validatedTagIds
-        })
-        try {
-            const newDraft = await gift.save()
-            res.json(newDraft)
-        } catch (error) {
-            res.json({ message: error.message })
-        }
-
-})
-
-router.put("/", authMiddleware, async (req, res) => {
-    const gift = await Draft.findById(req.body.draftId)
-    if (!gift) {
-        return res.status(404).json({ message: "Draft not found" })
-    }
-    if (gift.owner !== req.user.telegramId) {
-        return res.status(403).json({ message: "Not authorized to update this gift" })
-    }
-    gift.name = req.body.name || gift.name
-    gift.description = req.body.description || gift.description
-    gift.linkToGift = req.body.linkToGift || gift.linkToGift
-    gift.price = req.body.price || gift.price
-    gift.currency = req.body.currency || gift.currency
-
-    if (req.body.tags !== undefined) {
-            const { tags } = req.body;
-            let validatedTagIds = [];
-
-            if (Array.isArray(tags) && tags.length > 0) {
-                const userTags = await Tag.find({
-                    '_id': { $in: tags },
-                    'owner': req.user.telegramId
-                }).select('_id');
-
-                if (userTags.length !== tags.length) {
-                    return res.status(400).json({ message: "Invalid tags provided for update. One or more tags do not exist or do not belong to you." });
-                }
-                validatedTagIds = userTags.map(tag => tag._id);
-            }
-            gift.tags = validatedTagIds;
-        }
-
-    if (req.body.linkToImage) {
-        const response = await fetch("https://whishlist.hubforad.com/images", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({ base64: req.body.linkToImage })
-        });
-
-        const responseData = await response.json();
-
-        if (response.ok) {
-            const imageId = responseData.id;
-            gift.linkToImage = `https://whishlist.hubforad.com/images/${imageId}`;
+        // если это уже ссылка — сохраняем как есть
+        if (/^https?:\/\//i.test(linkToImage)) {
+            finalLinkToImage = linkToImage;
         } else {
-            return res.status(500).json({ message: "Failed to upload image" });
+            // считаем, что это base64 и заливаем на сервер
+            const response = await fetch("https://whishlist.hubforad.com/images", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({ base64: linkToImage })
+            });
+
+            const responseData = await response.json();
+
+            if (!response.ok) {
+                return res.status(500).json({ message: "Failed to upload image" });
+            }
+
+            finalLinkToImage = `https://whishlist.hubforad.com/images/${responseData.id}`;
         }
     } else {
-        gift.linkToImage = gift.linkToImage
+        // Если linkToImage не передан или пустая строка — оставляем undefined
+        finalLinkToImage = undefined;
     }
+
+    const draft = new Draft({
+        owner: ownerId,
+        name: req.body.name,
+        description: req.body.description,
+        linkToGift: req.body.linkToGift,
+        price: req.body.price,
+        currency: req.body.currency || 'RUB',
+        linkToImage: finalLinkToImage,
+        tags: validatedTagIds
+    });
+
     try {
-        const updatedDraft = await gift.save()
-        res.json(updatedDraft)
+        const newDraft = await draft.save();
+        res.json(newDraft);
     } catch (error) {
-        res.json({ message: error.message })
+        res.json({ message: error.message });
     }
-})
+});
+
+router.put("/", authMiddleware, async (req, res) => {
+    const draft = await Draft.findById(req.body.draftId);
+    if (!draft) {
+        return res.status(404).json({ message: "Draft not found" });
+    }
+    if (draft.owner !== req.user.telegramId) {
+        return res.status(403).json({ message: "Not authorized to update this draft" });
+    }
+
+    draft.name = req.body.name || draft.name;
+    draft.description = req.body.description || draft.description;
+    draft.linkToGift = req.body.linkToGift || draft.linkToGift;
+    draft.price = req.body.price || draft.price;
+    draft.currency = req.body.currency || draft.currency;
+
+    if (req.body.tags !== undefined) {
+        const { tags } = req.body;
+        let validatedTagIds = [];
+
+        if (Array.isArray(tags) && tags.length > 0) {
+            const userTags = await Tag.find({
+                '_id': { $in: tags },
+                'owner': req.user.telegramId
+            }).select('_id');
+
+            if (userTags.length !== tags.length) {
+                return res.status(400).json({ message: "Invalid tags provided for update. One or more tags do not exist or do not belong to you." });
+            }
+            validatedTagIds = userTags.map(tag => tag._id);
+        }
+        draft.tags = validatedTagIds;
+    }
+
+    if (req.body.linkToImage !== undefined) {
+        const linkToImage = req.body.linkToImage;
+
+        // если явно передали пустое значение (например ""), очищаем поле
+        if (!linkToImage) {
+            draft.linkToImage = undefined;
+        } else if (/^https?:\/\//i.test(linkToImage)) {
+            // если это уже ссылка — сохраняем её
+            draft.linkToImage = linkToImage;
+        } else {
+            // иначе считаем что это base64 и заливаем на сервер
+            const response = await fetch("https://whishlist.hubforad.com/images", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({ base64: linkToImage })
+            });
+
+            const responseData = await response.json();
+
+            if (!response.ok) {
+                return res.status(500).json({ message: "Failed to upload image" });
+            }
+
+            draft.linkToImage = `https://whishlist.hubforad.com/images/${responseData.id}`;
+        }
+    }
+    // если linkToImage не передан вовсе — оставляем текущее значение draft.linkToImage
+
+    try {
+        const updatedDraft = await draft.save();
+        res.json(updatedDraft);
+    } catch (error) {
+        res.json({ message: error.message });
+    }
+});
+
 
 //Get gift by ID
-router.get("/:draftId", async (req, res) => {
+router.get("/:draftId", authMiddleware, async (req, res) => {
     try {
         const requesterTelegramId = req.user.telegramId;
         const ownerUser = await User.findOne({
             telegramId: requesterTelegramId
         }).select('telegramId username firstName lastName photo_url').lean();
 
-        const draft = await Draft.findById(req.params.draftId).populate('tags');
+        const draft = await Draft.findById(req.params.draftId).populate('tags').lean();
         if (!draft) {
             return res.status(404).json({ message: "Draft not found" })
         }
@@ -365,8 +391,24 @@ router.get("/:draftId", async (req, res) => {
 
 router.get("/", authMiddleware, async (req, res) => {
     try {
-        const drafts = await Draft.find({ owner: req.user.telegramId }).populate('tags')
-        res.json(drafts)
+        const requesterTelegramId = req.user.telegramId;
+        const ownerUser = await User.findOne({
+            telegramId: requesterTelegramId
+        }).select('telegramId username firstName lastName photo_url').lean();
+
+        const drafts = await Draft.find({ owner: req.user.telegramId }).populate('tags').lean();
+
+        const draftsWithOwnerInfo = drafts.map(draft => ({
+            ...draft,
+            ownerInfo: ownerUser ? {
+                telegramId: ownerUser.telegramId,
+                username: ownerUser.username,
+                firstName: ownerUser.firstName,
+                lastName: ownerUser.lastName,
+                photo_url: ownerUser.photo_url
+            } : null
+        }));
+        res.json(draftsWithOwnerInfo)
     } catch (error) {
         res.json({ message: error.message })
     }
