@@ -340,10 +340,23 @@ router.put("/", authMiddleware, async (req, res) => {
 //Get gift by ID
 router.get("/:draftId", async (req, res) => {
     try {
+        const requesterTelegramId = req.user.telegramId;
+        const ownerUser = await User.findOne({
+            telegramId: requesterTelegramId
+        }).select('telegramId username firstName lastName photo_url').lean();
+
         const draft = await Draft.findById(req.params.draftId).populate('tags');
         if (!draft) {
             return res.status(404).json({ message: "Draft not found" })
         }
+
+        draft.ownerInfo = ownerUser ? {
+            telegramId: ownerUser.telegramId,
+            username: ownerUser.username,
+            firstName: ownerUser.firstName,
+            lastName: ownerUser.lastName,
+            photo_url: ownerUser.photo_url
+        } : null;
         res.json(draft)
     } catch (error) {
         res.json({ message: error.message })
