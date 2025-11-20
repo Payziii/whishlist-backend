@@ -40,31 +40,49 @@ router.get("/by-id/:userId", authMiddleware, async (req, res) => {
   try {
     const userId = req.params.userId;
 
+    // целевой пользователь
     const user = await User.findOne({ telegramId: userId }).lean();
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    const tags = await Tag.find({ owner: user.telegramId }).lean();
+    // запросивший пользователь (нам нужен _id и blocked)
+    const me = await User.findOne({ telegramId: req.user.telegramId }).populate('blocked').lean();
 
+    // Если у целевого пользователя есть viewers (и массив не пуст), 
+    // то доступ только для этих пользователей или самого пользователя
+    if (Array.isArray(user.viewers) && user.viewers.length > 0) {
+      const requesterId = me ? me._id.toString() : null;
+      const isOwner = (user._id && requesterId && user._id.toString() === requesterId);
+      const isInViewers = requesterId && user.viewers.some(v => v.toString() === requesterId);
+
+      if (!isOwner && !isInViewers) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+    }
+
+    // подгружаем теги и подарки (оставил вашу логику)
+    const tags = await Tag.find({ owner: user.telegramId }).lean();
     const gifts = await Gift.find({ owner: user.telegramId }).lean();
 
     user.tags = tags;
     user.giftsCount = gifts.length;
     user.isBlocked = false;
 
-    const me = await User.findOne({ telegramId: req.user.telegramId }).populate('blocked').lean();
+    // проверка, заблокирован ли целевой пользователь текущим пользователем
     if (me && me.blocked && Array.isArray(me.blocked)) {
-        if (me.blocked.some(blockedUser => blockedUser._id.toString() === user._id.toString())) {
-            user.isBlocked = true;
-        }
+      if (me.blocked.some(blockedUser => blockedUser._id.toString() === user._id.toString())) {
+        user.isBlocked = true;
+      }
     }
+
     res.status(200).json({ user });
   } catch (error) {
     console.log(error);
     res.status(500).json({ error: 'Failed' });
   }
 });
+
 
 /**
  * @swagger
@@ -131,15 +149,35 @@ router.get("/by-username/:username", async (req, res) => {
  *       500:
  *         description: Внутренняя ошибка сервера
  */
-router.get("/all", async (req, res) => {
+router.get("/all", authMiddleware, async (req, res) => {
     try {
-        const users = await User.find({});
-        res.status(200).json({ users });
+        const me = await User.findOne({ telegramId: req.user.telegramId }).lean();
+        if (!me) {
+            return res.status(404).json({ error: "Requester not found" });
+        }
+
+        const users = await User.find({}).lean();
+
+        const filteredUsers = users.filter(user => {
+            const viewers = user.viewers || [];
+
+            // Если viewers пустой — показываем пользователем
+            if (viewers.length === 0) return true;
+
+            // Если это сам пользователь — показываем
+            if (user._id.toString() === me._id.toString()) return true;
+
+            // Иначе — показываем только если me присутствует в viewers
+            return viewers.some(v => v.toString() === me._id.toString());
+        });
+
+        res.status(200).json({ users: filteredUsers });
+
     } catch (error) {
-        console.log(error)
+        console.log(error);
         res.status(500).json({ error: 'Failed to fetch users' });
     }
-})
+});
 
 /**
  * @swagger
