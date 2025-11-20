@@ -1,6 +1,7 @@
 import cron from "node-cron";
 import Event from "./models/event.model.js";
 import User from "./models/user.model.js";
+import Gift from "./models/gift.model.js"; // <- добавил импорт
 import { createNotification } from "./services/notification.service.js";
 
 /**
@@ -66,7 +67,51 @@ export const initEventScheduler = () => {
 
         console.log(`✅ Уведомление: "${event.name}" завершилось (отправлено ${owner.username || owner.telegramId})`);
 
-        if(event.sendAcknowledgements == true) {
+        // === Новая логика: пометить зарезервированные подарки как подаренные и уведомить ===
+        try {
+          // если в событии есть подарки — ищем их
+          if (event.gifts && event.gifts.length > 0) {
+            // Получаем подарки, которые участвуют в событии, зарезервированы и ещё не помечены как подаренные
+            const reservedGifts = await Gift.find({
+              _id: { $in: event.gifts },
+              isReserved: true,
+              isGiven: { $ne: true }
+            });
+
+            for (const gift of reservedGifts) {
+              // помечаем как подаренные
+              gift.isGiven = true;
+              await gift.save();
+
+              // отправляем уведомление: тот, кто зарезервировал, является отправителем (reservedBy)
+              const sender = await User.findOne({ telegramId: gift.reservedBy });
+              const recipient = await User.findOne({ telegramId: gift.owner });
+
+              if (sender && recipient) {
+                await createNotification({
+                  recipientId: recipient._id,
+                  senderId: sender._id,
+                  notificationType: 'GIFT_GIVEN',
+                  message: `${sender.firstName || sender.username} подарил вам ${gift.name}`,
+                  entityId: gift._id,
+                  entityModel: 'Gift'
+                });
+
+                console.log(`🎁 Подарок "${gift.name}" (id=${gift._id}) помечен как подаренный и уведомление отправлено владельцу ${recipient.username || recipient.telegramId}`);
+              } else {
+                // Если не нашли sender/recipient — логируем и продолжаем
+                console.log(`⚠️ Не удалось отправить уведомление для подарка ${gift._id}: sender или recipient не найдены (reservedBy=${gift.reservedBy}, owner=${gift.owner})`);
+              }
+            }
+          } else {
+            console.log(`ℹ️ Событие "${event.name}" не содержит подарков — ничего помечать не нужно.`);
+          }
+        } catch (giftErr) {
+          console.error(`❌ Ошибка при пометке подарков для события "${event.name}":`, giftErr);
+        }
+
+        // существующая логика отправки благодарностей, если включено
+        if (event.sendAcknowledgements == true) {
           for (const member of event.members) {
             await createNotification({
               recipientId: member._id,
