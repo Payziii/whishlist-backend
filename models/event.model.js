@@ -33,6 +33,10 @@ const eventSchema=new mongoose.Schema({
         type: Boolean,
         default: false
     },
+    giftersRevealedAt: {
+        type: Date,
+        default: null
+    },
     sendInvitations: {
         type: Boolean,
         default: false
