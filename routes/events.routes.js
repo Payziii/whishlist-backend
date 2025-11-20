@@ -703,7 +703,28 @@ router.get("/list", authMiddleware, async (req, res) => {
     }
 
     const events = await Event.find(query).populate('members', '_id username telegramId name photo_url firstName lastName');
-    res.send(events);
+    const eventsWithOwner = await Promise.all(
+      events.map(async event => {
+        const ownerUser = await User.findOne({ telegramId: event.owner })
+          .select('telegramId username firstName lastName photo_url')
+          .lean();
+
+        return {
+          ...event,
+          ownerInfo: ownerUser
+            ? {
+                telegramId: ownerUser.telegramId,
+                username: ownerUser.username,
+                firstName: ownerUser.firstName,
+                lastName: ownerUser.lastName,
+                photo_url: ownerUser.photo_url
+              }
+            : null
+        };
+      })
+    );
+
+    res.send(eventsWithOwner);
   } catch (error) {
     console.error(error);
     res.status(500).send({ message: 'Internal Server Error' });
@@ -753,6 +774,26 @@ router.get("/list/:telegramId", authMiddleware, async (req, res) => {
         const events = await Event.find(finalQuery).populate('members', '_id username telegramId name photo_url firstName lastName');
         
         res.json(events);
+        const eventsWithOwnerInfo = await Promise.all(
+            events.map(async event => {
+                const ownerUser = await User.findOne({ telegramId: event.owner })
+                    .select('telegramId username firstName lastName photo_url')
+                    .lean();
+
+                return {
+                    ...event,
+                    ownerInfo: ownerUser ? {
+                        telegramId: ownerUser.telegramId,
+                        username: ownerUser.username,
+                        firstName: ownerUser.firstName,
+                        lastName: ownerUser.lastName,
+                        photo_url: ownerUser.photo_url
+                    } : null
+                };
+            })
+        );
+
+        res.json(eventsWithOwnerInfo);
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
