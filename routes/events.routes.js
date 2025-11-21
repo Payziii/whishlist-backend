@@ -702,7 +702,7 @@ router.get("/list", authMiddleware, async (req, res) => {
       };
     }
 
-    const events = await Event.find(query).populate('members', '_id username telegramId name photo_url firstName lastName');
+    const events = await Event.find(query).populate('members', '_id username telegramId name photo_url firstName lastName').lean();
     const eventsWithOwner = await Promise.all(
       events.map(async event => {
         const ownerUser = await User.findOne({ telegramId: event.owner })
@@ -771,9 +771,8 @@ router.get("/list/:telegramId", authMiddleware, async (req, res) => {
         // Объединяем запросы: событие должно соответствовать И базовой логике, И логике приватности
         const finalQuery = { $and: [baseQuery, privacyQuery] };
         
-        const events = await Event.find(finalQuery).populate('members', '_id username telegramId name photo_url firstName lastName');
+        const events = await Event.find(finalQuery).populate('members', '_id username telegramId name photo_url firstName lastName').lean();
         
-        res.json(events);
         const eventsWithOwnerInfo = await Promise.all(
             events.map(async event => {
                 const ownerUser = await User.findOne({ telegramId: event.owner })
