@@ -992,6 +992,85 @@ router.post("/:eventId/join", authMiddleware, async (req, res) => {
 
 /**
  * @swagger
+ * /events/{id}/members/{memberId}:
+ *   delete:
+ *     summary: Удалить участника из события
+ *     description: Удаляет пользователя из списка участников события. Это действие доступно только владельцу события.
+ *     tags: [Events]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: Уникальный идентификатор события (MongoDB _id).
+ *       - in: path
+ *         name: memberId
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: Уникальный идентификатор пользователя (MongoDB _id), которого нужно удалить.
+ *     responses:
+ *       200:
+ *         description: Участник успешно удален. Возвращает обновленный объект события.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Event'
+ *       400:
+ *         description: Некорректный ID события или участника.
+ *       403:
+ *         description: Forbidden - Только владелец события может удалять участников.
+ *       404:
+ *         description: Событие не найдено.
+ *       500:
+ *         description: Internal Server Error.
+ */
+router.delete("/:id/members/:memberId", authMiddleware, async (req, res) => {
+    const { id, memberId } = req.params;
+    const ownerId = req.user.telegramId;
+
+    // Проверяем валидность MongoDB ID
+    if (!mongoose.Types.ObjectId.isValid(id) || !mongoose.Types.ObjectId.isValid(memberId)) {
+        return res.status(400).json({ message: "Invalid Event ID or Member ID format." });
+    }
+
+    try {
+        const event = await Event.findById(id);
+
+        if (!event) {
+            return res.status(404).json({ message: "Event not found." });
+        }
+
+        // ПРОВЕРКА ПРАВ: Только владелец может удалять участников
+        if (event.owner !== ownerId) {
+            return res.status(403).json({ message: "You are not authorized to remove members from this event." });
+        }
+
+        // Проверяем, есть ли такой участник вообще (опционально, но полезно для UX)
+        if (!event.members.includes(memberId)) {
+            return res.status(404).json({ message: "Member not found in this event." });
+        }
+
+        // Удаляем участника из массива (используем метод pull от Mongoose для массивов)
+        event.members.pull(memberId);
+
+        const updatedEvent = await event.save();
+
+        // Опционально: Можно отправить уведомление удаленному пользователю здесь
+        // createNotification(...) 
+
+        res.json(updatedEvent);
+    } catch (error) {
+        console.error("Error removing member:", error);
+        res.status(500).json({ message: error.message });
+    }
+});
+
+/**
+ * @swagger
  * /events/{eventId}/addGift/{giftId}:
  *   post:
  *     summary: Добавить существующий подарок в событие
