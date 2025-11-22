@@ -156,22 +156,43 @@ router.get("/all", authMiddleware, async (req, res) => {
             return res.status(404).json({ error: "Requester not found" });
         }
 
-        const users = await User.find({}).lean();
+        // 1. Запрашиваем пользователей и статистику подарков параллельно для скорости
+        const [users, giftStats] = await Promise.all([
+            User.find({}).lean(),
+            Gift.aggregate([
+                {
+                    $group: {
+                        _id: "$owner", // Группируем по telegramId владельца
+                        count: { $sum: 1 } // Считаем количество
+                    }
+                }
+            ])
+        ]);
+
+        // 2. Превращаем массив статистики в удобный объект (Map)
+        // { "telegramId1": 5, "telegramId2": 10 }
+        const giftsMap = {};
+        giftStats.forEach(stat => {
+            giftsMap[stat._id] = stat.count;
+        });
 
         const filteredUsers = users.filter(user => {
             const viewers = user.viewers || [];
 
-            // Если viewers пустой — показываем пользователем
+            // Логика фильтрации (без изменений)
             if (viewers.length === 0) return true;
-
-            // Если это сам пользователь — показываем
             if (user._id.toString() === me._id.toString()) return true;
-
-            // Иначе — показываем только если me присутствует в viewers
             return viewers.some(v => v.toString() === me._id.toString());
         });
 
-        res.status(200).json({ users: filteredUsers });
+        // 3. Добавляем giftsCount к каждому отфильтрованному пользователю
+        const result = filteredUsers.map(user => ({
+            ...user,
+            // Берем из карты или ставим 0, если подарков нет
+            giftsCount: giftsMap[user.telegramId] || 0 
+        }));
+
+        res.status(200).json({ users: result });
 
     } catch (error) {
         console.log(error);

@@ -75,16 +75,56 @@ router.post("/:friendId/add", authMiddleware, async (req, res) => {
 router.get("/:friendId/list", authMiddleware, async (req, res) => {
     try {
         const userId = req.params.friendId;
+
+        // 1. Добавляем .lean(), чтобы получить обычные JS-объекты, 
+        // которые можно легко модифицировать (добавлять giftsCount)
         const userWithFriends = await User.findOne({ telegramId: userId })
-            .populate('friends');
+            .populate('friends')
+            .lean();
+
         const friends = userWithFriends?.friends ?? [];
-        res.status(200).json({ friends: friends });
-    } catch (error) 
-    {
-        console.log(error)
+
+        if (friends.length === 0) {
+            return res.status(200).json({ friends: [] });
+        }
+
+        // 2. Собираем telegramId всех друзей для фильтрации подарков
+        const friendTelegramIds = friends.map(f => f.telegramId);
+
+        // 3. Агрегация: ищем подарки ТОЛЬКО для этих друзей
+        const giftStats = await Gift.aggregate([
+            { 
+                $match: { 
+                    owner: { $in: friendTelegramIds } // Фильтруем сразу на уровне БД
+                } 
+            },
+            {
+                $group: {
+                    _id: "$owner", // Группируем по владельцу
+                    count: { $sum: 1 }
+                }
+            }
+        ]);
+
+        // 4. Создаем словарь для быстрого поиска: { "telegramId": count }
+        const giftsMap = {};
+        giftStats.forEach(stat => {
+            giftsMap[stat._id] = stat.count;
+        });
+
+        // 5. Объединяем данные
+        const friendsWithGifts = friends.map(friend => ({
+            ...friend,
+            giftsCount: giftsMap[friend.telegramId] || 0
+        }));
+
+        res.status(200).json({ friends: friendsWithGifts });
+
+    } catch (error) {
+        console.log(error);
         res.status(500).json({ error: 'Failed to get friends' });
     }
-})
+});
 
 /**
  * @swagger
