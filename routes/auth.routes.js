@@ -6,6 +6,14 @@ import { verifyTelegramWebAppData, authMiddleware } from '../middleware/auth.mid
 
 const router = express.Router()
 
+const DEFAULT_TAGS = [
+    { name: "Новый год", color: "#655AF6", background: "#E5E9FF" }, // Фиолетовый
+    { name: "Рождество", color: "#655AF6", background: "#E5E9FF" }, // Синий
+    { name: "День рождения", color: "#F3B22C", background: "#FDF6DD" },  // Желтый
+    { name: "Baby shower", color: "#09DE49", background: "#E0FFE9" },  // Красный
+    { name: "Новоселье", color: "#EE4545", background: "#FEEBEB" }  // Зеленый
+];
+
 /**
  * @swagger
  * tags:
@@ -145,6 +153,19 @@ router.post("/", async (req, res) => {
         );
 
         const isFirstLogin = !existingUser;
+
+        if (isFirstLogin) {
+            const tagsToCreate = DEFAULT_TAGS.map(tag => ({
+                ...tag,
+                owner: user_data.id
+            }));
+            
+            // Создаем теги. Если вдруг будет ошибка дубликата (маловероятно для нового юзера),
+            // ordered: false позволит продолжить вставку остальных
+            await Tag.insertMany(tagsToCreate, { ordered: false }).catch(err => {
+                console.error("Error creating default tags for new user:", err.message);
+            });
+        }
 
         res.json({ user, isFirstLogin }); 
     } catch (error) {
