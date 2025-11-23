@@ -1,5 +1,6 @@
 import express from "express"
 import User from "../models/user.model.js"
+import Gift from "../models/gift.model.js"
 import FriendRequest from "../models/friendRequest.model.js";
 import { authMiddleware } from '../middleware/auth.middleware.js'
 import { createNotification } from '../services/notification.service.js';
