@@ -49,6 +49,15 @@ router.get("/by-id/:userId", authMiddleware, async (req, res) => {
     // запросивший пользователь (нам нужен _id и blocked)
     const me = await User.findOne({ telegramId: req.user.telegramId }).populate('blocked').lean();
 
+    if (me && user.blocked && Array.isArray(user.blocked)) {
+      // Проверяем, есть ли ID запрашивающего в списке blocked у целевого юзера
+      const amIBlocked = user.blocked.some(blockedId => blockedId.toString() === me._id.toString());
+
+      if (amIBlocked) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+    }
+
     // Если у целевого пользователя есть viewers (и массив не пуст), 
     // то доступ только для этих пользователей или самого пользователя
     if (Array.isArray(user.viewers) && user.viewers.length > 0) {
@@ -177,6 +186,13 @@ router.get("/all", authMiddleware, async (req, res) => {
         });
 
         const filteredUsers = users.filter(user => {
+            if (user.blocked && Array.isArray(user.blocked)) {
+                const hasBlockedMe = user.blocked.some(blockedId => blockedId.toString() === myIdStr);
+                if (hasBlockedMe) {
+                    return false; // Не показываем этого пользователя
+                }
+            }
+            
             const viewers = user.viewers || [];
 
             // Логика фильтрации (без изменений)
