@@ -190,4 +190,22 @@ router.get("/", authMiddleware, async (req, res) => {
     }
 });
 
+router.delete("/", authMiddleware, async (req, res) => {
+    try {
+        const telegramId = req.user.telegramId;
+
+        // 2. Удаляем самого пользователя
+        const deletedUser = await User.findOneAndDelete({ telegramId });
+
+        if (!deletedUser) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        res.json({ message: "User and associated data deleted successfully" });
+    } catch (error) {
+        console.error("Error deleting user:", error);
+        res.status(500).json({ message: error.message });
+    }
+});
+
 export default router
