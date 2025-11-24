@@ -118,7 +118,7 @@ export const initEventScheduler = () => {
               senderId: owner._id,
               notificationType: "EVENT_THANK_YOU",
               message: `${owner.firstName || owner.username} поблагодарил вас за  ${event.name}`,
-              description: event.acknowledgementMessage || "",
+              description: event.acknowledgementMessage.replace('{name}', `${member.firstName}`).replace('{event}', `${event.name}`) || "",
               entityId: event._id,
               entityModel: "Event"
             });

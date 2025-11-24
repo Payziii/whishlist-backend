@@ -47,7 +47,7 @@ const eventSchema=new mongoose.Schema({
     },
     acknowledgementMessage: {
         type: String,
-        default: "Большое спасибо {имя} за участие в событии {Событие}!"
+        default: "Большое спасибо {name} за участие в событии {event}!"
     },
     viewers: [{
         type: mongoose.Schema.Types.ObjectId,
