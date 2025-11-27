@@ -532,7 +532,7 @@ router.post("/", authMiddleware, async (req, res) => {
 
         if (sendInvitations && memberObjectIds && memberObjectIds.length > 0) {
             
-            const sender = await User.findOne({ telegramId: ownerTelegramId });
+            const sender = await User.findOne({ telegramId: ownerId });
 
             if (sender) {
                 memberObjectIds.forEach(memberId => {
