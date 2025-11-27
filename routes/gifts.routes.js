@@ -888,6 +888,11 @@ router.delete("/:giftId", authMiddleware, async (req, res) => {
  *           type: string
  *         description: Поисковый запрос по названию подарка
  *       - in: query
+ *         name: currency
+ *         schema:
+ *           type: string
+ *         description: Валюта (например, RUB, USD, EUR)
+ *       - in: query
  *         name: minPrice
  *         schema:
  *           type: number
@@ -935,7 +940,7 @@ router.delete("/:giftId", authMiddleware, async (req, res) => {
 router.get("/search/:telegramId", async (req, res) => {
   try {
     const { telegramId } = req.params;
-    const { q, minPrice, maxPrice, tags, sortBy } = req.query;
+    const { q, minPrice, maxPrice, tags, sortBy, currency } = req.query;
 
     // --- Получаем владельца ---
     const ownerUser = await User.findOne({
@@ -998,7 +1003,14 @@ router.get("/search/:telegramId", async (req, res) => {
         }
       }] : []),
 
-      // 5. Фильтр по тегам (по ID)
+      // 5. Фильтр по Валюте (НОВОЕ)
+      ...(currency ? [{
+        $match: {
+          currency: { $regex: currency, $options: 'i' }
+        }
+      }] : []),
+
+      // 6. Фильтр по тегам (по ID)
       ...(tags ? [{
         $match: {
           tags: {
@@ -1010,10 +1022,10 @@ router.get("/search/:telegramId", async (req, res) => {
         }
       }] : []),
 
-      // 6. Сортировка
+      // 7. Сортировка
       { $sort: sortOptions },
 
-      // 7. Формируем теги: только нужные поля
+      // 8. Формируем теги: только нужные поля
       {
         $addFields: {
           tags: {
@@ -1031,7 +1043,7 @@ router.get("/search/:telegramId", async (req, res) => {
         }
       },
 
-      // 8. Убираем временное поле
+      // 9. Убираем временное поле
       { $unset: 'tagDocs' }
     ]);
 
