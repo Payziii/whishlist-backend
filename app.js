@@ -17,6 +17,7 @@ import notificationsRoutes from "./routes/notifications.routes.js"
 import draftsRoutes from "./routes/drafts.routes.js"
 import parsesRoutes from "./routes/parses.routes.js"
 import thanksRoutes from "./routes/thanks.routes.js"
+import otherRoutes from "./routes/other.routes.js"
 
 import { initEventScheduler } from "./scheduler.js";
 import { runBot } from "./bot.js";
@@ -25,8 +26,10 @@ dotenv.config()
 
 const app=express()
 
-app.use(express.json({ limit: '5mb' }));
-app.use(express.urlencoded({ limit: "5mb", extended: true }));
+const uploadLimit = process.env.MAX_UPLOAD_LIMIT || '5mb';
+
+app.use(express.json({ limit: uploadLimit }));
+app.use(express.urlencoded({ limit: uploadLimit, extended: true }));
 app.use(cors())
 
 const swaggerOptions = {
@@ -54,6 +57,7 @@ app.use("/notifications",notificationsRoutes)
 app.use("/drafts",draftsRoutes)
 app.use("/parses",parsesRoutes)
 app.use("/thanks",thanksRoutes)
+app.use("/other", otherRoutes)
 
 app.listen(5000,()=>{
     connectToMongo()
