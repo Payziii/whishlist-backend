@@ -3,7 +3,7 @@ import User from "../models/user.model.js"
 import Gift from "../models/gift.model.js"
 import FriendRequest from "../models/friendRequest.model.js";
 import { authMiddleware } from '../middleware/auth.middleware.js'
-import { createNotification } from '../services/notification.service.js';
+import { createNotification, deleteNotification } from '../services/notification.service.js';
 
 const router = express.Router()
 /**
@@ -293,6 +293,11 @@ router.delete("/request/:recipientTelegramId/cancel", authMiddleware, async (req
             return res.status(404).json({ message: "Friend request not found." });
         }
 
+        await deleteNotification({ 
+            entityId: request._id, 
+            type: 'FRIEND_REQUEST' 
+        });
+
         await FriendRequest.findByIdAndDelete(request._id);
 
         res.status(200).json({ message: "Friend request cancelled successfully." });
@@ -346,6 +351,11 @@ router.post("/request/:requestId/respond", authMiddleware, async (req, res) => {
         if (!request) {
             return res.status(404).json({ message: "Friend request not found or you don't have permission to respond." });
         }
+
+        await deleteNotification({ 
+            entityId: request._id, 
+            type: 'FRIEND_REQUEST' 
+        });
 
         if (action === 'accept') {
             request.status = 'accepted';

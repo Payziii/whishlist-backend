@@ -41,3 +41,17 @@ export const createNotification = async ({ recipientId, senderId, notificationTy
         console.error('Failed to create notification:', error.message);
     }
 };
+
+/**
+ * Удаляет уведомление по критериям.
+ * @param {object} criteria - Объект фильтра для поиска удаляемого уведомления.
+ */
+export const deleteNotification = async (criteria) => {
+    try {
+        // Удаляем уведомление(я), соответствующие критериям
+        await Notification.deleteMany(criteria);
+        console.log('Notification(s) deleted based on criteria:', criteria);
+    } catch (error) {
+        console.error('Failed to delete notification:', error.message);
+    }
+};
