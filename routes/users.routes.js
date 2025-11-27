@@ -185,6 +185,8 @@ router.get("/all", authMiddleware, async (req, res) => {
             giftsMap[stat._id] = stat.count;
         });
 
+        const myIdStr = me._id.toString();
+        
         const filteredUsers = users.filter(user => {
             if (user.blocked && Array.isArray(user.blocked)) {
                 const hasBlockedMe = user.blocked.some(blockedId => blockedId.toString() === myIdStr);
