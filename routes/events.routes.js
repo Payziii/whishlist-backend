@@ -925,21 +925,46 @@ router.get("/:id", authMiddleware, async (req, res) => {
 
         // Преобразуем событие в объект и добавляем дополнительную информацию
         const eventResponse = event.toObject();
+
+        const isSecretMode = event.isAnonymous && !event.giftersRevealedAt;
         
         eventResponse.ownerInfo = ownerUser || null;
-        eventResponse.gifts = eventResponse.gifts.map(gift => ({
-            ...gift,
-            ownerInfo: gift.owner ? (giftOwnersMap[gift.owner] || {
+        eventResponse.gifts = eventResponse.gifts.map(gift => {
+            const isMyReservation = gift.reservedBy === requesterTelegramId;
+
+            const showGifterInfo = !isSecretMode || isMyReservation;
+
+            const giftOwnerInfo = gift.owner ? (giftOwnersMap[gift.owner] || {
                 telegramId: gift.owner,
                 username: "",
                 firstName: "",
                 lastName: "",
                 photo_url: ""
-            }) : null,
-            reservedUserInfo: (gift.isReserved && gift.reservedBy) 
-                ? reservedUsersMap[gift.reservedBy] || {} 
-                : {}
-        }));
+            }) : null;
+
+            let reservedUserInfo = {};
+            
+            if (gift.isReserved && gift.reservedBy) {
+                if (showGifterInfo) {
+                    reservedUserInfo = reservedUsersMap[gift.reservedBy] || {};
+                } else {
+                    reservedUserInfo = {
+                        telegramId: null, 
+                        username: "Аноним",
+                        firstName: "Анонимный",
+                        lastName: "Даритель",
+                        photo_url: null, 
+                        isAnonymous: true 
+                    };
+                }
+            }
+
+            return {
+                ...gift,
+                ownerInfo: giftOwnerInfo,
+                reservedUserInfo: reservedUserInfo
+            };
+        });
 
         return res.json(eventResponse);
 
