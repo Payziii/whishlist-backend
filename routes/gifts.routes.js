@@ -1177,6 +1177,56 @@ router.post("/donation", authMiddleware, async (req, res) => {
                 });
             }
 
+            if (gift.price && gift.price > 0) {
+            // 1. Получаем полные данные всех доноров для подсчета суммы
+            const allDonors = await Donor.find({ _id: { $in: currentDonation.donors } });
+            
+            // 2. Считаем текущую сумму
+            const totalAmount = allDonors.reduce((sum, d) => sum + d.amount, 0);
+            
+            // 3. Считаем сумму ДО этого доната
+            const previousAmount = totalAmount - donationAmount;
+
+            // 4. Проверяем условие: Раньше было меньше цены, сейчас стало >= цены
+            // Это гарантирует отправку только 1 раз
+            if (previousAmount < gift.price && totalAmount >= gift.price) {
+                
+                // Находим владельца подарка
+                const ownerUser = await User.findOne({ telegramId: gift.owner });
+                
+                // Собираем ID всех, кого нужно уведомить (Owner + Donors)
+                // Используем Set, чтобы убрать дубликаты (если один юзер донатил 2 раза)
+                const recipientsSet = new Set();
+                
+                if (ownerUser) {
+                    recipientsSet.add(ownerUser._id.toString());
+                }
+
+                allDonors.forEach(d => {
+                    if (d.user) {
+                        recipientsSet.add(d.user.toString());
+                    }
+                });
+
+                // Превращаем обратно в массив
+                const uniqueRecipientIds = Array.from(recipientsSet);
+
+                // Отправляем уведомления всем участникам
+                const notificationPromises = uniqueRecipientIds.map(recipientId => {
+                    return createNotification({
+                        recipientId: recipientId,
+                        senderId: user._id, // Кто завершил сбор (последний донатер)
+                        notificationType: 'GIFT_FUNDRAISING_CLOSED',
+                        message: `Сбор на ${gift.name} завершен`,
+                        entityId: gift._id,
+                        entityModel: 'Gift'
+                    });
+                });
+
+                await Promise.all(notificationPromises);
+            }
+        }
+
             return res.json({ donation: savedDonation, donor: savedDonor, gift });
         }
     } catch (err) {
@@ -1364,20 +1414,6 @@ router.get("/:giftId/donors", authMiddleware, async (req, res) => {
                 currency: donor.user.currency
             } : null
         }));
-        if (totalAmount > gift.price) {
-            const recipient = await User.findOne({ telegramId: gift.owner });
-
-            if (recipient) {
-                createNotification({
-                    recipientId: recipient._id,
-                    senderId: recipient._id,
-                    notificationType: 'GIFT_FUNDRAISING_CLOSED',
-                    message: `Сбор на ${gift.name} завершен`,
-                    entityId: gift._id,
-                    entityModel: 'Gift'
-                });
-            }
-        }
 
         res.json({
             donationId: donation._id,
