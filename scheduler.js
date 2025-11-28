@@ -24,6 +24,7 @@ export const initEventScheduler = () => {
           $gte: new Date(oneDayFromNow.getTime() - 60 * 1000),
           $lte: new Date(oneDayFromNow.getTime() + 0 * 1000),
         },
+        startNotificationSent: { $ne: true }
       });
 
       // Ищем события, которые только что закончились (±1 мин)
@@ -32,6 +33,7 @@ export const initEventScheduler = () => {
           $gte: new Date(now.getTime() - 60 * 1000),
           $lte: new Date(now.getTime() + 60 * 1000),
         },
+        completionNotificationSent: { $ne: true }
       });
 
       // === 1. За сутки до начала ===
@@ -48,11 +50,17 @@ export const initEventScheduler = () => {
           entityModel: "Event",
         });
 
+        event.startNotificationSent = true; 
+        await event.save();
+
         console.log(`📅 Уведомление: "${event.name}" начинается через сутки (отправлено ${owner.username || owner.telegramId})`);
       }
 
       // === 2. После завершения ===
       for (const event of eventsJustEnded) {
+        event.completionNotificationSent = true;
+        await event.save();
+        
         const owner = await User.findOne({ telegramId: event.owner });
         if (!owner) continue;
 

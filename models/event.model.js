@@ -21,6 +21,14 @@ const eventSchema=new mongoose.Schema({
     endDate: {
         type: Date
     },
+    completionNotificationSent: {
+        type: Boolean,
+        default: false
+    },
+    startNotificationSent: {
+        type: Boolean,
+        default: false
+    },
     gifts: [{
             type: mongoose.Schema.Types.ObjectId,
             ref: 'Gift' 
