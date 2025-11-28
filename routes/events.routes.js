@@ -530,23 +530,35 @@ router.post("/", authMiddleware, async (req, res) => {
 
         const savedEvent = await newEvent.save();
 
-        if (sendInvitations && memberObjectIds && memberObjectIds.length > 0) {
-            
+        if (sendInvitations) {
             const sender = await User.findOne({ telegramId: ownerId });
 
             if (sender) {
-                memberObjectIds.forEach(memberId => {
-                    if (!sender._id.equals(memberId)) {
-                        createNotification({
-                            recipientId: memberId,
-                            senderId: sender._id,
-                            notificationType: 'EVENT_INVITATION',
-                            message: `${sender.firstName || sender.username} пригласил вас на событие "${savedEvent.name}"`,
-                            entityId: savedEvent._id,
-                            entityModel: 'Event' 
-                        });
-                    }
-                });
+                let recipients = [];
+                const userFriends = sender.friends || [];
+
+                if (viewerObjectIds && viewerObjectIds.length > 0) {
+                    recipients = userFriends.filter(friendId => 
+                        viewerObjectIds.some(viewerId => viewerId.toString() === friendId.toString())
+                    );
+                } else {
+                    recipients = userFriends;
+                }
+
+                for (const recipientId of recipients) {
+                    if (sender._id.equals(recipientId)) continue;
+
+                    // if (memberObjectIds.some(m => m.toString() === recipientId.toString())) continue;
+
+                    await createNotification({
+                        recipientId: recipientId,
+                        senderId: sender._id,
+                        notificationType: 'EVENT_INVITATION',
+                        message: `${sender.firstName || sender.username} пригласил вас на событие "${savedEvent.name}"`,
+                        entityId: savedEvent._id,
+                        entityModel: 'Event'
+                    });
+                }
             }
         }
 
