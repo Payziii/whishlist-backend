@@ -1231,6 +1231,7 @@ router.post("/donation", authMiddleware, async (req, res) => {
         }
     } catch (err) {
         res.status(500).json({ message: err.message });
+        console.kig(err)
     }
 });
 
