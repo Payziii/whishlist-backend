@@ -1153,18 +1153,6 @@ router.post("/donation", authMiddleware, async (req, res) => {
             donation.donors.push(savedDonor._id);
             await donation.save();
 
-            const recipient = await User.findOne({ telegramId: gift.owner });
-
-            if (user && recipient) {
-                createNotification({
-                    recipientId: recipient._id,
-                    senderId: user._id,
-                    notificationType: 'GIFT_FUNDRAISING_OPENED',
-                    message: `${user.firstName || user.username} открыл сбор средств`,
-                    entityId: gift._id,
-                    entityModel: 'Gift'
-                });
-            }
             return res.json({ donation, donor: savedDonor });
         } else {
             // Нет donation у подарка — создаём новую Donation и связываем
@@ -1175,6 +1163,20 @@ router.post("/donation", authMiddleware, async (req, res) => {
             const savedDonation = await newDonation.save();
             gift.donation = savedDonation._id;
             await gift.save();
+
+            const recipient = await User.findOne({ telegramId: gift.owner });
+
+            if (user && recipient) {
+                await createNotification({
+                    recipientId: recipient._id,
+                    senderId: user._id,
+                    notificationType: 'GIFT_FUNDRAISING_OPENED',
+                    message: `${user.firstName || user.username} открыл сбор средств`,
+                    entityId: gift._id,
+                    entityModel: 'Gift'
+                });
+            }
+
             return res.json({ donation: savedDonation, donor: savedDonor, gift });
         }
     } catch (err) {
