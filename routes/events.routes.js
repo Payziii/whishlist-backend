@@ -693,28 +693,54 @@ router.get("/list", authMiddleware, async (req, res) => {
     const userId = req.user.telegramId;
 
     const user = await User.findOne({ telegramId: userId }).populate('friends');
+    const currentUserObjectId = user._id;
+
+    const isVisibleCondition = {
+      $or: [
+        { viewers: { $exists: false } },
+        { viewers: { $size: 0 } },
+        { viewers: currentUserObjectId },
+        { members: currentUserObjectId }
+      ]
+    };
 
     let query = {};
+
     if (author === 'me') {
-      query.owner = userId;
+      query.owner = userId; 
     } else if (author === 'friends') {
       const friendIds = user.friends.map(friend => friend.telegramId);
-      query.owner = { $in: friendIds };
+      
+      query = {
+        owner: { $in: friendIds },
+        ...isVisibleCondition 
+      };
+
     } else {
       const friendIds = user.friends.map(friend => friend.telegramId);
 
-      const currentUserObjectId = user._id;
-
       query = {
         $or: [
-          { owner: userId },                                      // мои подарки (я владелец)
-          { owner: { $in: friendIds } },                          // подарки друзей
-          { members: currentUserObjectId }                        // события, где я участник
+          { owner: userId },
+          
+          { members: currentUserObjectId },
+
+          {
+            owner: { $in: friendIds },
+            $or: [
+                 { viewers: { $exists: false } },
+                 { viewers: { $size: 0 } },
+                 { viewers: currentUserObjectId }
+            ]
+          }
         ]
       };
     }
 
-    const events = await Event.find(query).populate('members', '_id username telegramId name photo_url firstName lastName').lean();
+    const events = await Event.find(query)
+      .populate('members', '_id username telegramId name photo_url firstName lastName')
+      .lean();
+    
     const eventsWithOwner = await Promise.all(
       events.map(async event => {
         const ownerUser = await User.findOne({ telegramId: event.owner })
