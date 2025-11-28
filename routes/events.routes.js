@@ -926,7 +926,8 @@ router.get("/:id", authMiddleware, async (req, res) => {
         // Преобразуем событие в объект и добавляем дополнительную информацию
         const eventResponse = event.toObject();
 
-        const isSecretMode = event.isAnonymous && !event.giftersRevealedAt;
+        const isGiftOwner = event.owner === requesterTelegramId;
+        const isSecretMode = event.isAnonymous && !event.giftersRevealedAt && isGiftOwner;
         
         eventResponse.ownerInfo = ownerUser || null;
         eventResponse.gifts = eventResponse.gifts.map(gift => {

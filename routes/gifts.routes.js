@@ -1093,6 +1093,9 @@ router.get("/search/:telegramId", async (req, res) => {
  *               amount:
  *                 type: number
  *                 description: "Сумма взноса"
+ *               isAnonymous:
+ *                 type: boolean
+ *                 description: "Анонимность"
  *     responses:
  *       200:
  *         description: Донорский взнос добавлен к подарку
@@ -1110,7 +1113,7 @@ router.get("/search/:telegramId", async (req, res) => {
  */
 router.post("/donation", authMiddleware, async (req, res) => {
     try {
-        const { giftId, amount } = req.body;
+        const { giftId, amount, isAnonymous } = req.body;
 
         if (!giftId || amount == null) {
             return res.status(400).json({ message: "giftId amount" });
@@ -1158,7 +1161,8 @@ router.post("/donation", authMiddleware, async (req, res) => {
             // Нет donation у подарка — создаём новую Donation и связываем
             const newDonation = new Donation({
                 author: user._id,
-                donors: [savedDonor._id]
+                donors: [savedDonor._id],
+                isAnonymous: !!isAnonymous
             });
             const savedDonation = await newDonation.save();
             gift.donation = savedDonation._id;
@@ -1400,21 +1404,50 @@ router.get("/:giftId/donors", authMiddleware, async (req, res) => {
             return res.json({ donors: [], donationId: donation ? donation._id : null });
         }
 
-        // Преобразуем в понятную структуру
-        const donorsDetailed = donation.donors.map(donor => ({
-            donorId: donor._id,
-            amount: donor.amount,
-            createdAt: donor.createdAt,
-            user: donor.user ? {
-                telegramId: donor.user.telegramId,
-                username: donor.user.username,
-                firstName: donor.user.firstName,
-                lastName: donor.user.lastName,
-                photo_url: donor.user.photo_url,
-                language: donor.user.language,
-                currency: donor.user.currency
-            } : null
-        }));
+        const isGiftOwner = gift.owner === requesterTelegramId;
+
+        const isSurpriseMode = donation.isAnonymous && !gift.isGiven;
+
+        const shouldHideDetails = isGiftOwner && isSurpriseMode;
+
+        const donorsDetailed = donation.donors.map(donor => {
+            if (!donor.user) return null;
+
+            const isMe = donor.user.telegramId === requesterTelegramId;
+
+            if (shouldHideDetails && !isMe) {
+                return {
+                    donorId: donor._id,
+                    amount: donor.amount, 
+                    createdAt: donor.createdAt,
+                    user: {
+                        telegramId: null,
+                        username: "Аноним",
+                        firstName: "Анонимный",
+                        lastName: "Даритель",
+                        photo_url: null, 
+                        language: null,
+                        currency: null,
+                        isAnonymous: true 
+                    }
+                };
+            }
+
+            return {
+                donorId: donor._id,
+                amount: donor.amount,
+                createdAt: donor.createdAt,
+                user: {
+                    telegramId: donor.user.telegramId,
+                    username: donor.user.username,
+                    firstName: donor.user.firstName,
+                    lastName: donor.user.lastName,
+                    photo_url: donor.user.photo_url,
+                    language: donor.user.language,
+                    currency: donor.user.currency
+                }
+            };
+        }).filter(Boolean);
 
         res.json({
             donationId: donation._id,

@@ -6,6 +6,10 @@ const donationSchema = new mongoose.Schema({
         ref: 'User',
         required: true
     },
+    isAnonymous: {
+        type: Boolean,
+        default: false
+    },
     donors: [{
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Donor'
