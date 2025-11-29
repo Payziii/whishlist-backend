@@ -1367,6 +1367,7 @@ router.delete("/donation/:giftId", authMiddleware, async (req, res) => {
  */
 router.get("/:giftId/donors", authMiddleware, async (req, res) => {
     try {
+        const requesterTelegramId = req.user.telegramId;
         const { giftId } = req.params;
         if (!giftId || !mongoose.Types.ObjectId.isValid(giftId)) {
             return res.status(400).json({ message: "Некорректный id подарка." });
