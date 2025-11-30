@@ -804,6 +804,7 @@ router.patch("/:giftId", authMiddleware, async (req, res) => {
                     senderId: sender._id,
                     notificationType: 'GIFT_RESERVED',
                     message: `${sender.firstName || sender.username} забронировал подарок ${gift.name}`,
+                    message_en: `${sender.firstName || sender.username} reserved ${gift.name}`,
                     entityId: gift._id,
                     entityModel: 'Gift'
                 });
@@ -837,6 +838,7 @@ router.patch("/mark-given/:giftId", authMiddleware, async (req, res) => {
                     senderId: sender._id,
                     notificationType: 'GIFT_GIVEN',
                     message: `${sender.firstName || sender.username} подарил вам ${gift.name}`,
+                    message_en: `${sender.firstName || sender.username} gave you ${gift.name}`,
                     entityId: gift._id,
                     entityModel: 'Gift'
                 });
@@ -1176,6 +1178,7 @@ router.post("/donation", authMiddleware, async (req, res) => {
                     senderId: user._id,
                     notificationType: 'GIFT_FUNDRAISING_OPENED',
                     message: `${user.firstName || user.username} открыл сбор средств`,
+                    message_en: `${user.firstName || user.username} opened a fundraiser`,
                     entityId: gift._id,
                     entityModel: 'Gift'
                 });
@@ -1222,6 +1225,7 @@ router.post("/donation", authMiddleware, async (req, res) => {
                         senderId: user._id, // Кто завершил сбор (последний донатер)
                         notificationType: 'GIFT_FUNDRAISING_CLOSED',
                         message: `Сбор на ${gift.name} завершен`,
+                        message_en: `The fundraiser for ${gift.name} has closed`,
                         entityId: gift._id,
                         entityModel: 'Gift'
                     });

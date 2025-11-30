@@ -238,6 +238,7 @@ router.post("/request/:recipientTelegramId", authMiddleware, async (req, res) =>
             senderId: initiator._id,
             notificationType: 'FRIEND_REQUEST',
             message: `${initiator.firstName || initiator.username} хочет с вами дружить`,
+            message_en: `${initiator.firstName || initiator.username} wants to be friends with you`,
             entityId: newRequest._id,
             entityModel: 'FriendRequest'
         });
@@ -370,6 +371,7 @@ router.post("/request/:requestId/respond", authMiddleware, async (req, res) => {
                 senderId: currentUser._id,
                 notificationType: 'FRIEND_REQUEST_ACCEPTED',
                 message: `${currentUser.firstName || currentUser.username} принял вашу заявку в друзья`,
+                message_en: `${currentUser.firstName || currentUser.username} accepted your friend request`,
                 entityId: currentUser._id,
                 entityModel: 'User'
             });
@@ -385,6 +387,7 @@ router.post("/request/:requestId/respond", authMiddleware, async (req, res) => {
                 senderId: currentUser._id,
                 notificationType: 'FRIEND_REQUEST_DECLINED',
                 message: `${currentUser.firstName || currentUser.username} отклонил вашу заявку в друзья`,
+                message_en: `${currentUser.firstName || currentUser.username} rejected your friend request`,
                 entityId: currentUser._id,
                 entityModel: 'User'
             });

@@ -160,6 +160,7 @@ router.post("/gifts", authMiddleware, async (req, res) => {
                         senderId: sender._id,
                         notificationType: "GIFT_THANK_YOU_NOTE",
                         message: `${sender.firstName || sender.username} поблагодарил вас за ${gift.name}`,
+                        message_en: `${sender.firstName || sender.username} thanked you for ${gift.name}`,
                         description: req.body.message || "",
                         entityId: gift._id,
                         entityModel: "Gift"
@@ -175,6 +176,7 @@ router.post("/gifts", authMiddleware, async (req, res) => {
                         senderId: sender._id,
                         notificationType: "GIFT_THANK_YOU_NOTE",
                         message: `${sender.firstName || sender.username} поблагодарил вас за ${gift.name}`,
+                        message_en: `${sender.firstName || sender.username} thanked you for ${gift.name}`,
                         description: req.body.message || "",
                         entityId: gift._id,
                         entityModel: "Gift"
@@ -268,7 +270,8 @@ router.post("/events/:eventId", authMiddleware, async (req, res) => {
                 recipientId: member._id,
                 senderId: sender._id,
                 notificationType: "EVENT_THANK_YOU",
-                message: `${sender.firstName || sender.username} поблагодарил вас за  ${event.name}`,
+                message: `${sender.firstName || sender.username} поблагодарил вас за ${event.name}`,
+                message_en: `${sender.firstName || sender.username} thanked you for ${event.name}`,
                 description: req.body.message || "",
                 entityId: event._id,
                 entityModel: "Event"

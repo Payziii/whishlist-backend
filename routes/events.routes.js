@@ -555,6 +555,7 @@ router.post("/", authMiddleware, async (req, res) => {
                         senderId: sender._id,
                         notificationType: 'EVENT_INVITATION',
                         message: `${sender.firstName || sender.username} пригласил вас на событие "${savedEvent.name}"`,
+                        message_en: `${sender.firstName || sender.username} invited you to an event "${savedEvent.name}"`,
                         entityId: savedEvent._id,
                         entityModel: 'Event'
                     });
@@ -1043,6 +1044,7 @@ router.post("/:eventId/join", authMiddleware, async (req, res) => {
         senderId: sender._id,
         notificationType: "EVENT_PARTICIPANT_JOINED",
         message: `${sender.firstName || sender.username} присоединился к ${event.name}`,
+        message_en: `${sender.firstName || sender.username} joined ${event.name}`,
         entityId: event._id,
         entityModel: "Event",
       });

@@ -269,12 +269,25 @@ router.get("/", authMiddleware, async (req, res) => {
         
         const currentUser = await User.findOne({ telegramId: currentUserTelegramId });
 
+        const userLang = currentUser.language || 'ru';
+
         const notifications = await Notification.find({ recipient: currentUser._id })
             .populate('sender', 'telegramId firstName lastName username photo_url') 
             .sort({ createdAt: -1 })
             .lean();
 
-        const enrichedNotifications = await enrichNotificationsWithLastEvent(notifications);
+        const localizedNotifications = notifications.map(notif => {
+            return {
+                ...notif,
+                // Магия тут: выбираем нужное поле и кладем в стандартное 'message'
+                message: userLang === 'en' ? notif.message_en : notif.message,
+                
+                // Удаляем лишние технические поля, чтобы не слать мусор (опционально)
+                message_en: undefined
+            };
+        });
+
+        const enrichedNotifications = await enrichNotificationsWithLastEvent(localizedNotifications);
 
         res.status(200).json(enrichedNotifications);
 
@@ -310,6 +323,8 @@ router.get("/unread", authMiddleware, async (req, res) => {
         const currentUserTelegramId = req.user.telegramId;
         const currentUser = await User.findOne({ telegramId: currentUserTelegramId });
 
+        const userLang = currentUser.language || 'ru';
+
         const unreadNotifications = await Notification.find({
             recipient: currentUser._id,
             isRead: false
@@ -318,7 +333,18 @@ router.get("/unread", authMiddleware, async (req, res) => {
         .sort({ createdAt: -1 })
         .lean();
 
-        const enrichedNotifications = await enrichNotificationsWithLastEvent(unreadNotifications);
+        const localizedNotifications = unreadNotifications.map(notif => {
+            return {
+                ...notif,
+                // Магия тут: выбираем нужное поле и кладем в стандартное 'message'
+                message: userLang === 'en' ? notif.message_en : notif.message,
+                
+                // Удаляем лишние технические поля, чтобы не слать мусор (опционально)
+                message_en: undefined
+            };
+        });
+
+        const enrichedNotifications = await enrichNotificationsWithLastEvent(localizedNotifications);
 
         res.status(200).json(enrichedNotifications);
 

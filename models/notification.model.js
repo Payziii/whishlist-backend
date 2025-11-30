@@ -37,6 +37,9 @@ const notificationSchema = new mongoose.Schema({
         type: String,
         required: true
     },
+    message_en: {
+        type: String
+    },
     description: {
         type: String
     },

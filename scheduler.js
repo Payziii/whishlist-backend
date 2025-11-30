@@ -46,6 +46,7 @@ export const initEventScheduler = () => {
           senderId: owner._id, // сам себе
           notificationType: "EVENT_STARTING_SOON",
           message: `${event.name} запланировано на ${new Date(event.startDate).toLocaleString("ru-RU")}`,
+          message_en: `${event.name} scheduled for ${new Date(event.startDate).toLocaleString("ru-RU")}`,
           entityId: event._id,
           entityModel: "Event",
         });
@@ -69,6 +70,7 @@ export const initEventScheduler = () => {
           senderId: owner._id,
           notificationType: "EVENT_COMPLETED",
           message: `Время писать благодарности`,
+          message_en: `Time to write thanks`,
           entityId: event._id,
           entityModel: "Event",
         });
@@ -101,6 +103,7 @@ export const initEventScheduler = () => {
                   senderId: sender._id,
                   notificationType: 'GIFT_GIVEN',
                   message: `${sender.firstName || sender.username} подарил вам ${gift.name}`,
+                  message_en: `${sender.firstName || sender.username} gave you ${gift.name}`,
                   entityId: gift._id,
                   entityModel: 'Gift'
                 });
@@ -126,6 +129,7 @@ export const initEventScheduler = () => {
               senderId: owner._id,
               notificationType: "EVENT_THANK_YOU",
               message: `${owner.firstName || owner.username} поблагодарил вас за  ${event.name}`,
+              message_en: `${owner.firstName || owner.username} thanked you for ${event.name}`,
               description: event.acknowledgementMessage.replace('{name}', `${member.firstName}`).replace('{event}', `${event.name}`) || "",
               entityId: event._id,
               entityModel: "Event"
@@ -162,6 +166,7 @@ export const initEventScheduler = () => {
           senderId: owner._id,
           notificationType: "EVENT_GIFTERS_REVEALED",
           message: `Дарители раскрыты!`,
+          message_en: `Donors revealed!`,
           entityId: event._id,
           entityModel: "Event",
         });

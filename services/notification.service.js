@@ -19,7 +19,7 @@ import Notification from '../models/notification.model.js';
  * @param {string} params.entityModel - Модель связанной сущности ('User', 'Event', 'Gift', 'FriendRequest').
  * @param {string} [params.senderId] - ObjectId отправителя (опционально).
  */
-export const createNotification = async ({ recipientId, senderId, notificationType, message, description, entityId, entityModel }) => {
+export const createNotification = async ({ recipientId, senderId, notificationType, message, message_en, description, entityId, entityModel }) => {
     try {
         if (!recipientId || !notificationType || !message || !entityId || !entityModel) { 
             throw new Error('Missing required parameters for notification');
@@ -30,6 +30,7 @@ export const createNotification = async ({ recipientId, senderId, notificationTy
             sender: senderId,
             type: notificationType,
             message,
+            message_en,
             description,
             entityId,
             entityModel
