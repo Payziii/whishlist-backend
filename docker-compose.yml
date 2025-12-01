@@ -14,7 +14,7 @@ services:
       - .env 
 
   mongo:
-    image: mongo:6
+    image: public.ecr.aws/docker/library/mongo:6
     ports:
       - "27017:27017"
     volumes:
