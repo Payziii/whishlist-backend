@@ -25,6 +25,7 @@ import { runBot } from "./bot.js";
 dotenv.config()
 
 const app=express()
+app.set('etag', false);
 
 const uploadLimit = process.env.MAX_UPLOAD_LIMIT || '5mb';
 
