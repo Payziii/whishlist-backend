@@ -33,6 +33,11 @@ app.use(express.json({ limit: uploadLimit }));
 app.use(express.urlencoded({ limit: uploadLimit, extended: true }));
 app.use(cors())
 
+app.use((req, res, next) => {
+  res.set('Cache-Control', 'no-store');
+  next();
+});
+
 const swaggerOptions = {
   swaggerDefinition: {
     openapi: '3.0.0',
