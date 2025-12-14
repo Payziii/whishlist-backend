@@ -1,11 +1,15 @@
 import express from "express"
+import dotenv from "dotenv";
 import Draft from "../models/draft.model.js"
 import Tag from '../models/tag.model.js';
 import User from "../models/user.model.js";
 import { authMiddleware } from '../middleware/auth.middleware.js'
 import { createNotification } from '../services/notification.service.js';
 
+dotenv.config();
 const router = express.Router()
+
+const DOMAIN = process.env.DOMAIN || 'http://app:5000';
 
 /**
  * @swagger
@@ -251,7 +255,7 @@ router.post("/", authMiddleware, async (req, res) => {
             finalLinkToImage = linkToImage;
         } else {
             // считаем, что это base64 и заливаем на сервер
-            const response = await fetch("https://whishlist.hubforad.com/images", {
+            const response = await fetch(`${DOMAIN}/images`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json"
@@ -265,7 +269,7 @@ router.post("/", authMiddleware, async (req, res) => {
                 return res.status(500).json({ message: "Failed to upload image" });
             }
 
-            finalLinkToImage = `https://whishlist.hubforad.com/images/${responseData.id}`;
+            finalLinkToImage = `${DOMAIN}/images/${responseData.id}`;
         }
     } else {
         // Если linkToImage не передан или пустая строка — оставляем undefined
@@ -335,7 +339,7 @@ router.put("/", authMiddleware, async (req, res) => {
             draft.linkToImage = linkToImage;
         } else {
             // иначе считаем что это base64 и заливаем на сервер
-            const response = await fetch("https://whishlist.hubforad.com/images", {
+            const response = await fetch(`${DOMAIN}/images`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json"
@@ -349,7 +353,7 @@ router.put("/", authMiddleware, async (req, res) => {
                 return res.status(500).json({ message: "Failed to upload image" });
             }
 
-            draft.linkToImage = `https://whishlist.hubforad.com/images/${responseData.id}`;
+            draft.linkToImage = `${DOMAIN}/images/${responseData.id}`;
         }
     }
     // если linkToImage не передан вовсе — оставляем текущее значение draft.linkToImage

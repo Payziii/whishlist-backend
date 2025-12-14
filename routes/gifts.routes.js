@@ -1,4 +1,5 @@
 import express from "express"
+import dotenv from "dotenv";
 import mongoose from 'mongoose';
 import Gift from "../models/gift.model.js"
 import Event from "../models/event.model.js";
@@ -9,7 +10,10 @@ import Donor from "../models/donor.model.js";
 import { authMiddleware } from '../middleware/auth.middleware.js'
 import { createNotification } from '../services/notification.service.js';
 
+dotenv.config();
 const router = express.Router()
+
+const DOMAIN = process.env.DOMAIN || 'http://app:5000';
 
 /**
  * @swagger
@@ -594,7 +598,7 @@ router.post("/", authMiddleware, async (req, res) => {
             finalLinkToImage = linkToImage;
         } else {
             // Иначе считаем, что это base64 и заливаем на сервер
-            const response = await fetch("https://whishlist.hubforad.com/images", {
+            const response = await fetch(`${DOMAIN}/images`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json"
@@ -609,7 +613,7 @@ router.post("/", authMiddleware, async (req, res) => {
             }
 
             const imageId = responseData.id;
-            finalLinkToImage = `https://whishlist.hubforad.com/images/${imageId}`;
+            finalLinkToImage = `${DOMAIN}/images/${imageId}`;
         }
     }
 
@@ -686,7 +690,7 @@ router.put("/", authMiddleware, async (req, res) => {
             gift.linkToImage = linkToImage;
         } else {
             // Иначе считаем, что это base64 и заливаем на сервер
-            const response = await fetch("https://whishlist.hubforad.com/images", {
+            const response = await fetch(`${DOMAIN}/images`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json"
@@ -701,7 +705,7 @@ router.put("/", authMiddleware, async (req, res) => {
             }
 
             const imageId = responseData.id;
-            gift.linkToImage = `https://whishlist.hubforad.com/images/${imageId}`;
+            gift.linkToImage = `${DOMAIN}/images/${imageId}`;
         }
     }
 

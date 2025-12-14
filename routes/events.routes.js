@@ -1,4 +1,5 @@
 import express from "express";
+import dotenv from "dotenv";
 import mongoose from 'mongoose';
 import Event from "../models/event.model.js";
 import Gift from "../models/gift.model.js";
@@ -6,7 +7,10 @@ import User from "../models/user.model.js";
 import { authMiddleware } from '../middleware/auth.middleware.js';
 import { createNotification } from '../services/notification.service.js';
 
-const router = express.Router();
+dotenv.config();
+const router = express.Router()
+
+const DOMAIN = process.env.DOMAIN || 'http://app:5000';
 
 /**
  * @swagger
@@ -497,7 +501,7 @@ router.post("/", authMiddleware, async (req, res) => {
         // Handle image upload if a base64 string is provided
         let imageUrl = image;
         if (image && image.startsWith('data:image')) {
-             const response = await fetch("https://whishlist.hubforad.com/images", {
+             const response = await fetch(`${DOMAIN}/images`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json"
@@ -506,7 +510,7 @@ router.post("/", authMiddleware, async (req, res) => {
             });
             const responseData = await response.json();
             if (response.ok) {
-                imageUrl = `https://whishlist.hubforad.com/images/${responseData.id}`;
+                imageUrl = `${DOMAIN}/images/${responseData.id}`;
             } else {
                  return res.status(500).json({ message: "Failed to upload image." });
             }
@@ -614,14 +618,14 @@ router.put("/:id", authMiddleware, async (req, res) => {
         // Update image
         if (req.body.image) {
              if (req.body.image.startsWith('data:image')) { // Check for new base64 image
-                const response = await fetch("https://whishlist.hubforad.com/images", {
+                const response = await fetch(`${DOMAIN}/images`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ base64: req.body.image })
                 });
                 const responseData = await response.json();
                 if (response.ok) {
-                    event.image = `https://whishlist.hubforad.com/images/${responseData.id}`;
+                    event.image = `${DOMAIN}/images/${responseData.id}`;
                 } else {
                     return res.status(500).json({ message: "Failed to upload new image." });
                 }
