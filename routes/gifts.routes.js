@@ -606,6 +606,8 @@ router.post("/", authMiddleware, async (req, res) => {
                 body: JSON.stringify({ base64: linkToImage })
             });
 
+            console.log(response)
+
             const responseData = await response.json();
 
             if (!response.ok) {
