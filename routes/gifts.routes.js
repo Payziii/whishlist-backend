@@ -14,7 +14,6 @@ dotenv.config();
 const router = express.Router()
 
 const DOMAIN = process.env.DOMAIN || 'http://app:5000';
-console.log(DOMAIN)
 
 /**
  * @swagger

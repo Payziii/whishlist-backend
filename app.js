@@ -68,6 +68,7 @@ app.use("/other", otherRoutes)
 app.listen(5000,()=>{
     connectToMongo()
     console.log("Server is started at http://localhost:5000")
+    console.log(process.env.DOMAIN)
 
     initEventScheduler();
     runBot();
